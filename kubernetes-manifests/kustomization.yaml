@@ -27,6 +27,10 @@ resources:
  - recommendationservice.yaml
  - redis.yaml
  - shippingservice.yaml
+ - postgres.yaml
+ - chatbot-api.yaml
+ - attack-simulator.yaml
+ - chatbot-attack-simulator.yaml
 components:
 # - ../kustomize/components/cymbal-branding
 # - ../kustomize/components/google-cloud-operations

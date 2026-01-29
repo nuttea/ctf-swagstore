@@ -16,6 +16,7 @@ const path = require('path');
 const grpc = require('@grpc/grpc-js');
 const pino = require('pino');
 const protoLoader = require('@grpc/proto-loader');
+const tracer = require('dd-trace').init();  // dd-trace をインポート
 
 const charge = require('./charge');
 
@@ -49,7 +50,9 @@ class HipsterShopServer {
    */
   static ChargeServiceHandler(call, callback) {
     try {
-      logger.info(`PaymentService#Charge invoked with request ${JSON.stringify(call.request)}`);
+          const span = tracer.scope().active();  // 現在のアクティブなトレースを取得
+          const traceId = span ? span.context().toTraceId() : 'no-trace';  // トレースIDを取得
+      logger.info(`PaymentService#Charge invoked with request ${JSON.stringify(call.request)} Trace ID: ${traceId}`);
       const response = charge(call.request);
       callback(null, response);
     } catch (err) {

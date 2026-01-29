@@ -33,7 +33,55 @@ spec:
         tags.datadoghq.com/version: "0.5.0"
         admission.datadoghq.com/enabled: "true"
       annotations:
-        admission.datadoghq.com/java-lib.version: "v1.3.0"
+        admission.datadoghq.com/java-lib.version: "latest"
+        ad.datadoghq.com/server.logs: '[{"source": "java", "service": "adservice"}]'         
+        ad.datadoghq.com/server.checks: |
+          {
+            "jmx": {
+              "init_config": {
+                "is_jmx": true,
+                "collect_default_metrics": true,
+                "collect_default_jvm_metrics": true,
+                "new_gc_metrics": true,
+                "conf": [{
+                  "include": {
+                    "domain": "java.lang",
+                    "type": "MemoryPool",
+                    "attribute": {
+                      "Usage.used": {
+                        "metric_type": "gauge",
+                        "alias": "jvm.memory_usage"
+                        },
+                      "Usage.committed": {
+                        "metric_type": "gauge",
+                        "alias": "jvm.memory_committed"
+                        }
+                      }
+                    }
+                }, {
+                  "include": {
+                  "domain": "java.lang",
+                  "type": "Threading",
+                  "attribute": {
+                    "ThreadCount": {
+                     "metric_type": "gauge",
+                     "alias": "jvm.threads.active"
+                      },
+                    "TotalStartedThreadCount": {
+                     "metric_type": "gauge",
+                      "alias": "jvm.threads.total"
+                      }
+              }
+            }
+          }]
+              },
+              "instances": [{
+                "host": "%%host%%",
+                "port": "8081",
+                "tags": ["pod_name:%%kube_pod_name%%"]
+              }]
+            }
+          }
     spec:
       serviceAccountName: default
       terminationGracePeriodSeconds: 5
@@ -51,9 +99,12 @@ spec:
               - all
           privileged: false
         #   readOnlyRootFilesystem: true
+        #image: ghcr.io/dd-japan/ctf-swagstore/adservice:latest
         image: adservice
         ports:
         - containerPort: 9555
+        - name: jmx-metrics
+          containerPort: 8081
         env:
         - name: PORT
           value: "9555"
@@ -67,10 +118,46 @@ spec:
           value: "true"
         - name: DD_LOGS_INJECTION
           value: "true"
-        - name: DD_TRACE_SAMPLE_RATE
-          value: "1"
+        #- name: DD_TRACE_SAMPLE_RATE
+        #  value: "1"
         - name: DD_INVENTORIES_CONFIGURATION_ENABLED
           value: "true"
+        - name: DD_PROFILING_DIRECTALLOCATION_ENABLED
+          value: "true"
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        #- name: DD_TRACE_SAMPLING_RULES
+        #  value: '[{"service": "*", "sample_rate": 0.2}]'
+        - name: DD_RUNTIME_METRICS_ENABLED
+          value: "true"
+        - name: DD_JMXFETCH_STATSD_HOST
+          value: "unix:///var/run/datadog/dsd.socket"
+        #- name: DD_DOGSTATSD_URL
+        #  value: "unix:///var/datadog-agent/dsd.socket"
+        - name: JAVA_OPTS
+          value: >-
+              -Dcom.sun.management.jmxremote
+              -Dcom.sun.management.jmxremote.authenticate=false
+              -Dcom.sun.management.jmxremote.ssl=false
+              -Dcom.sun.management.jmxremote.local.only=false
+              -Dcom.sun.management.jmxremote.port=8081
+              -Dcom.sun.management.jmxremote.rmi.port=8081
+              -Djava.rmi.server.hostname=$(POD_IP)
+              -Ddd.profiling.directallocation.enabled=true
+        #- name: DD_ENTITY_ID
+        #  valueFrom:
+        #    fieldRef:
+        #      fieldPath: metadata.uid
+        - name: DD_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        #- name: HOST_IP
+        #  valueFrom:
+        #    fieldRef:
+        #      fieldPath: status.hostIP
         resources:
           requests:
             cpu: 200m
@@ -78,6 +165,20 @@ spec:
           limits:
             cpu: 300m
             memory: 300Mi
+        #volumeMounts:
+        #  - name: jmx-config-map
+        #    mountPath: /etc/datadog-agent/conf.d/jmx.d
+      ##volumes:
+      #- name: datadog
+      #  hostPath:
+      #    path: /var/datadog
+      #    type: DirectoryOrCreate
+      #  - name: jmx-config-map
+      #    configMap:
+      #      name: jmx-config-map
+      #      items:
+      #        - key: jmx-config
+      #          path: conf.yaml
         # readinessProbe:
         #   initialDelaySeconds: 40
         #   periodSeconds: 15

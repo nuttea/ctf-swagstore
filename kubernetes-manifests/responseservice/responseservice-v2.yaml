@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: responseservice-v2
+  labels:
+    app: responseservice-v2
+    tags.datadoghq.com/env: "ctf"
+    tags.datadoghq.com/service: "responseservice"
+    tags.datadoghq.com/version: "v2.0.0"       
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: responseservice-v2
+  template:
+    metadata:
+      labels:
+        app: responseservice-v2
+        admission.datadoghq.com/enabled: "true"     
+        tags.datadoghq.com/env: "ctf"
+        tags.datadoghq.com/service: "responseservice"
+        tags.datadoghq.com/version: "v2.0.0"
+    spec:
+      containers:
+        - name: responseservice-v2
+          image: ghcr.io/dd-japan/ctf-swagstore/responseservice-v2:latest
+          ports:
+            - containerPort: 8080
+          imagePullPolicy: Always
+          env:  
+            - name: NUM_RUNDOM_DATA
+              value: "1000000"
+            - name: DD_ENV
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/env']
+            - name: DD_SERVICE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/service']
+            - name: DD_VERSION
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/version']
+            - name: DD_TRACE_SAMPLE_RATE
+              value: "1"              
+          resources:
+            limits:
+              cpu: 250m
+              memory: 250Mi
+            requests:
+              cpu: 50m
+              memory: 100Mi          
+          volumeMounts:                  # ボリュームマウントのセクションを追加
+            - name: config-volume
+              mountPath: /root/data            
+      volumes:                          # volumes セクションを追加
+        - name: config-volume
+          configMap:
+            name: inputdata
+            items:
+            - key: input.txt
+              path: input.txt          
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: responseservice-service-v2
+spec:
+  selector:
+    app: responseservice-v2
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080

@@ -13,15 +13,20 @@
 # limitations under the License.
 
 # FROM golang:1.19.4-alpine AS builder
-FROM --platform=$BUILDPLATFORM golang:1.19.4-alpine AS builder
+FROM golang:1.24-alpine AS builder
 RUN apk add --no-cache ca-certificates git
 RUN apk add build-base
 
 WORKDIR /src
 # restore dependencies
 COPY go.mod go.sum ./
+# go.sumファイルを削除して依存関係を最初から取得
+RUN rm -f go.sum
 RUN go mod download
 COPY . .
+
+# 依存関係を実際の使用状況に合わせて整理
+RUN go mod tidy
 
 # ARG BUILDOS 
 # ARG BUILDARCH

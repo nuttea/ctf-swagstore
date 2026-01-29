@@ -1,0 +1,38 @@
+# Attack Simulator for Datadog AAP Testing
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: attack-simulator
+  labels:
+    app: attack-simulator
+    purpose: security-testing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: attack-simulator
+  template:
+    metadata:
+      labels:
+        app: attack-simulator
+        purpose: security-testing
+    spec:
+      containers:
+      - name: attack-simulator
+        image: attack-simulator
+        imagePullPolicy: Always
+        env:
+        - name: FRONTEND_URL
+          value: "http://frontend"
+        - name: ATTACK_INTERVAL
+          value: "300"  # 2分ごとに通常攻撃を実行
+        - name: LATENCY_ATTACK_INTERVAL
+          value: "3600"  # 1時間ごとにレイテンシー悪化攻撃を実行
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+

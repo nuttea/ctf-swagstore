@@ -11,10 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
+const tracer = require('dd-trace').init();
 const cardValidator = require('simple-card-validator');
 const { v4: uuidv4 } = require('uuid');
 const pino = require('pino');
+const formats = require('dd-trace/ext/formats');
 
 const logger = pino({
   name: 'paymentservice-charge',
@@ -22,6 +23,11 @@ const logger = pino({
   formatters: {
     level (logLevelString, logLevelNum) {
       return { severity: logLevelString }
+    },
+    log(obj) {
+          // ログの前にタイムスタンプを追加
+          obj.timestamp = new Date().toISOString();  // ISO形式のタイムスタンプ
+          return obj;
     }
   }
 });
@@ -51,6 +57,11 @@ class ExpiredCreditCard extends CreditCardError {
     super(`Your credit card (ending ${number.substr(-4)}) expired on ${month}/${year}`);
   }
 }
+class SpecificYearCreditCardError extends CreditCardError {
+  constructor(year) {
+    super(`Credit cards with an expiration year of ${year} are not accepted. The flag is "bits"`);
+  }
+}
 
 /**
  * Verifies the credit card number and (pretend) charges the card.
@@ -66,6 +77,15 @@ module.exports = function charge (request) {
     card_type: cardType,
     valid
   } = cardInfo.getCardDetails();
+  const span = tracer.scope().active();
+  const traceId = span ? span.context().toTraceId() : 'no-trace';
+  const spanId = span ? span.context().toSpanId() : 'no-span';
+
+  //console.log(`[Trace ID: ${traceId}, Span ID: ${spanId}] Card number: ${cardNumber}`); // デバッグ用ログ
+  //console.log(`Card type: ${cardType}`); // デバッグ用ログ
+  //console.log(`Card valid: ${valid}`); // デバッグ用ログ
+  //console.log(`Expiration year: ${creditCard.credit_card_expiration_year}`); // デバッグ用ログ
+  //console.log(`Expiration month: ${creditCard.credit_card_expiration_month}`); // デバッグ用ログ
 
   if (!valid) { throw new InvalidCreditCard(); }
 
@@ -77,10 +97,14 @@ module.exports = function charge (request) {
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
   const { credit_card_expiration_year: year, credit_card_expiration_month: month } = creditCard;
+  // Specific check for the year 2025
+  if (year === 2025) {
+   logger.error(`SpecificYearCreditCardError: Credit cards with an expiration year of ${year} are not accepted. The flag is "bits" Trace ID: ${traceId}`);
+   throw new SpecificYearCreditCardError(year); }
   if ((currentYear * 12 + currentMonth) > (year * 12 + month)) { throw new ExpiredCreditCard(cardNumber.replace('-', ''), month, year); }
 
-  logger.info(`Transaction processed: ${cardType} ending ${cardNumber.substr(-4)} \
-    Amount: ${amount.currency_code}${amount.units}.${amount.nanos}`);
+  logger.info(`Transaction processed: ${cardType} ending ${cardNumber.substr(-4)} expiration year ${year} \
+    Amount: ${amount.currency_code}${amount.units}.${amount.nanos} Trace ID: ${traceId}`);
 
   return { transaction_id: uuidv4() };
 };

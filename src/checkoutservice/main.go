@@ -169,6 +169,7 @@ func main() {
 	log.Infof("starting to listen on tcp: %q", lis.Addr().String())
 	err = srv.Serve(lis)
 	log.Fatal(err)
+
 }
 
 func initStats() {
@@ -265,7 +266,11 @@ func (cs *checkoutService) Watch(req *healthpb.HealthCheckRequest, ws healthpb.H
 }
 
 func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (*pb.PlaceOrderResponse, error) {
-	log.Infof("[PlaceOrder] user_id=%q user_currency=%q", req.UserId, req.UserCurrency)
+	span, ctx := tracer.StartSpanFromContext(ctx, "PlaceOrder")  // コンテキストを更新
+	defer span.Finish()
+
+	traceID := span.Context().TraceID()
+	log.Infof("[PlaceOrder] user_id=%q user_currency=%q dd.trace_id=%d", req.UserId, req.UserCurrency, traceID)
 
 	orderID, err := uuid.NewUUID()
 	if err != nil {
@@ -310,7 +315,7 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 	if err := cs.sendOrderConfirmation(ctx, req.Email, orderResult); err != nil {
 		log.Warnf("failed to send order confirmation to %q: %+v", req.Email, err)
 	} else {
-		log.Infof("order confirmation email sent to %q", req.Email)
+		log.Infof("order confirmation email sent to %q dd.trace_id=%d", req.Email, traceID)
 	}
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
 	return resp, nil

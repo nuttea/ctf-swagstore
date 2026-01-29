@@ -1,0 +1,51 @@
+# Chatbot Attack Simulator Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot-attack-simulator
+  labels:
+    app: chatbot-attack-simulator
+    tags.datadoghq.com/env: "swagstore"
+    tags.datadoghq.com/service: "chatbot-attack-simulator"
+    tags.datadoghq.com/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chatbot-attack-simulator
+  template:
+    metadata:
+      labels:
+        app: chatbot-attack-simulator
+        tags.datadoghq.com/env: "swagstore"
+        tags.datadoghq.com/service: "chatbot-attack-simulator"
+        tags.datadoghq.com/version: "1.0.0"
+      annotations:
+        ad.datadoghq.com/chatbot-attack-simulator.logs: '[{"source":"chatbot-attack-simulator","service":"chatbot-attack-simulator"}]'
+    spec:
+      containers:
+      - name: chatbot-attack-simulator
+        image: chatbot-attack-simulator
+        env:
+        - name: CHATBOT_URL
+          value: "http://chatbot-api:8080"
+        - name: ATTACK_INTERVAL
+          value: "300"  # 5分ごとに各攻撃を実行（ラウンドロビン）
+        - name: CYCLE_INTERVAL
+          value: "2100"  # 1サイクル = 7攻撃 × 5分 = 35分
+        - name: DD_ENV
+          value: "swagstore"
+        - name: DD_SERVICE
+          value: "chatbot-attack-simulator"
+        - name: DD_VERSION
+          value: "1.0.0"
+        - name: DD_LOGS_INJECTION
+          value: "true"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+

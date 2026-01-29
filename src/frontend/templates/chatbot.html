@@ -1,0 +1,501 @@
+{{define "chatbot"}}
+<!-- Chatbot Widget -->
+<div id="chatbot-widget">
+    <button id="chatbot-toggle" class="chatbot-toggle" aria-label="チャットを開く">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C6.48 2 2 6.48 2 12C2 13.89 2.53 15.64 3.44 17.11L2 22L6.89 20.56C8.36 21.47 10.11 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C10.37 20 8.84 19.54 7.53 18.73L7.15 18.5L4.43 19.29L5.23 16.61L4.98 16.21C4.14 14.86 3.67 13.29 3.67 11.67C3.67 7.39 7.22 3.83 11.5 3.83C15.78 3.83 19.33 7.39 19.33 11.67C19.33 15.95 15.78 19.5 11.5 19.5L12 20Z" fill="white"/>
+            <path d="M8 11H10V13H8V11Z" fill="white"/>
+            <path d="M11 11H13V13H11V11Z" fill="white"/>
+            <path d="M14 11H16V13H14V11Z" fill="white"/>
+        </svg>
+    </button>
+    
+    <div id="chatbot-window" class="chatbot-window" style="display: none;">
+        <div class="chatbot-header">
+            <div class="chatbot-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="white"/>
+                </svg>
+                Swagstore AI サポート
+            </div>
+            <button id="chatbot-close" class="chatbot-close" aria-label="閉じる">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z" fill="white"/>
+                </svg>
+            </button>
+        </div>
+        
+        <div id="chatbot-messages" class="chatbot-messages">
+            <div class="chatbot-message bot-message">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <p>こんにちは！Swagstoreへようこそ👋</p>
+                    <p>商品についてお気軽にご質問ください。AIがお手伝いいたします！</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chatbot-input-container">
+            <input 
+                type="text" 
+                id="chatbot-input" 
+                class="chatbot-input" 
+                placeholder="メッセージを入力..."
+                autocomplete="off"
+            />
+            <button id="chatbot-send" class="chatbot-send" aria-label="送信">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M2.01 21L23 12L2.01 3L2 10L17 12L2 14L2.01 21Z" fill="white"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Chatbot Widget Styles */
+#chatbot-widget {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.chatbot-toggle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.chatbot-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 25px rgba(102, 126, 234, 0.6);
+}
+
+.chatbot-window {
+    position: absolute;
+    bottom: 80px;
+    right: 0;
+    width: 380px;
+    height: 600px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.chatbot-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chatbot-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.chatbot-close {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.chatbot-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.chatbot-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background: #f7f7f7;
+}
+
+.chatbot-message {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    animation: messageSlide 0.3s ease;
+}
+
+@keyframes messageSlide {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-avatar {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.message-content {
+    background: white;
+    padding: 12px 16px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    max-width: 80%;
+}
+
+.bot-message .message-content {
+    border-top-left-radius: 4px;
+}
+
+.user-message {
+    flex-direction: row-reverse;
+}
+
+.user-message .message-content {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-top-right-radius: 4px;
+}
+
+.message-content p {
+    margin: 0 0 8px 0;
+    line-height: 1.5;
+    font-size: 14px;
+}
+
+.message-content p:last-child {
+    margin-bottom: 0;
+}
+
+.product-card {
+    margin-top: 12px;
+    padding: 12px;
+    background: #f7f7f7;
+    border-radius: 8px;
+    border-left: 3px solid #667eea;
+}
+
+.product-card-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #333;
+}
+
+.product-card-price {
+    color: #667eea;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.message-timestamp {
+    font-size: 11px;
+    color: #999;
+    margin-top: 4px;
+}
+
+.typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: 12px 16px;
+}
+
+.typing-indicator span {
+    width: 8px;
+    height: 8px;
+    background: #999;
+    border-radius: 50%;
+    animation: typing 1.4s infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing {
+    0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.4;
+    }
+    30% {
+        transform: translateY(-10px);
+        opacity: 1;
+    }
+}
+
+.chatbot-input-container {
+    padding: 20px;
+    background: white;
+    border-top: 1px solid #e5e5e5;
+    display: flex;
+    gap: 10px;
+}
+
+.chatbot-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid #e5e5e5;
+    border-radius: 24px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.chatbot-input:focus {
+    border-color: #667eea;
+}
+
+.chatbot-send {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.chatbot-send:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.chatbot-send:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .chatbot-window {
+        width: calc(100vw - 40px);
+        height: calc(100vh - 120px);
+        max-height: 600px;
+    }
+}
+</style>
+
+<script>
+// Chatbot Widget JavaScript
+(function() {
+    const toggle = document.getElementById('chatbot-toggle');
+    const chatWindow = document.getElementById('chatbot-window');
+    const closeBtn = document.getElementById('chatbot-close');
+    const input = document.getElementById('chatbot-input');
+    const sendBtn = document.getElementById('chatbot-send');
+    const messagesContainer = document.getElementById('chatbot-messages');
+    
+    let isOpen = false;
+    
+    // Toggle chatbot window
+    toggle.addEventListener('click', () => {
+        isOpen = !isOpen;
+        chatWindow.style.display = isOpen ? 'flex' : 'none';
+        if (isOpen) {
+            input.focus();
+            // Datadog RUM: チャットボット開いたイベント
+            window.DD_RUM && window.DD_RUM.addAction('chatbot_opened');
+        }
+    });
+    
+    closeBtn.addEventListener('click', () => {
+        isOpen = false;
+        chatWindow.style.display = 'none';
+        // Datadog RUM: チャットボット閉じたイベント
+        window.DD_RUM && window.DD_RUM.addAction('chatbot_closed');
+    });
+    
+    // Send message
+    async function sendMessage() {
+        const message = input.value.trim();
+        if (!message) return;
+        
+        // Add user message to UI
+        addMessage(message, 'user');
+        input.value = '';
+        sendBtn.disabled = true;
+        
+        // Show typing indicator
+        const typingId = showTypingIndicator();
+        
+        // Datadog RUM: メッセージ送信イベント
+        window.DD_RUM && window.DD_RUM.addAction('chatbot_message_sent', {
+            message_length: message.length
+        });
+        
+        try {
+            // Call chatbot API
+            const response = await fetch('/api/chatbot/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: message,
+                    context: {
+                        page: window.location.pathname,
+                        url: window.location.href
+                    }
+                })
+            });
+            
+            // Remove typing indicator
+            removeTypingIndicator(typingId);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Add bot response
+                addMessage(data.message, 'bot', data.products);
+                
+                // Datadog RUM: 応答受信イベント
+                window.DD_RUM && window.DD_RUM.addAction('chatbot_response_received', {
+                    response_length: data.message.length,
+                    products_count: data.products ? data.products.length : 0,
+                    model: data.metadata?.model
+                });
+            } else {
+                addMessage('申し訳ございません。エラーが発生しました。', 'bot');
+                
+                // Datadog RUM: エラーイベント
+                window.DD_RUM && window.DD_RUM.addError(new Error('Chatbot API error: ' + data.error));
+            }
+        } catch (error) {
+            removeTypingIndicator(typingId);
+            addMessage('申し訳ございません。接続エラーが発生しました。', 'bot');
+            console.error('Chatbot error:', error);
+            
+            // Datadog RUM: エラーイベント
+            window.DD_RUM && window.DD_RUM.addError(error);
+        } finally {
+            sendBtn.disabled = false;
+        }
+    }
+    
+    sendBtn.addEventListener('click', sendMessage);
+    input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
+    
+    // Add message to UI
+    function addMessage(text, sender, products = null) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chatbot-message ${sender}-message`;
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        avatar.textContent = sender === 'bot' ? '🤖' : '👤';
+        
+        const content = document.createElement('div');
+        content.className = 'message-content';
+        
+        const textP = document.createElement('p');
+        textP.textContent = text;
+        content.appendChild(textP);
+        
+        // Add product cards if available
+        if (products && products.length > 0) {
+            products.slice(0, 3).forEach(product => {
+                const card = document.createElement('div');
+                card.className = 'product-card';
+                card.innerHTML = `
+                    <div class="product-card-title">${product.product_name}</div>
+                    <div class="product-card-price">$${parseFloat(product.price_usd).toFixed(2)}</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                        関連度: ${(product.similarity * 100).toFixed(0)}%
+                    </div>
+                `;
+                content.appendChild(card);
+            });
+        }
+        
+        messageDiv.appendChild(avatar);
+        messageDiv.appendChild(content);
+        messagesContainer.appendChild(messageDiv);
+        
+        // Scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    // Show typing indicator
+    function showTypingIndicator() {
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'chatbot-message bot-message';
+        typingDiv.id = 'typing-indicator-' + Date.now();
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        avatar.textContent = '🤖';
+        
+        const content = document.createElement('div');
+        content.className = 'message-content';
+        
+        const typingIndicator = document.createElement('div');
+        typingIndicator.className = 'typing-indicator';
+        typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+        
+        content.appendChild(typingIndicator);
+        typingDiv.appendChild(avatar);
+        typingDiv.appendChild(content);
+        messagesContainer.appendChild(typingDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        return typingDiv.id;
+    }
+    
+    // Remove typing indicator
+    function removeTypingIndicator(id) {
+        const indicator = document.getElementById(id);
+        if (indicator) {
+            indicator.remove();
+        }
+    }
+})();
+</script>
+{{end}}
+

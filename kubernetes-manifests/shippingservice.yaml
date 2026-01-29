@@ -32,6 +32,8 @@ spec:
         tags.datadoghq.com/service: "shippingservice"
         tags.datadoghq.com/version: "0.5.0"
         admission.datadoghq.com/enabled: "true"
+      annotations:
+        ad.datadoghq.com/server.logs: '[{"source": "go", "service": "shippingservice"}]'              
     spec:
       serviceAccountName: default
       securityContext:
@@ -48,6 +50,7 @@ spec:
               - all
           privileged: false
           # readOnlyRootFilesystem: true
+        #image: ghcr.io/dd-japan/ctf-swagstore/shippingservice:latest
         image: shippingservice
         ports:
         - containerPort: 50051

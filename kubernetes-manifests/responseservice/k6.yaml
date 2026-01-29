@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-load-v1
+spec:
+  template:
+    spec:
+      containers:
+      - name: k6
+        image: grafana/k6:0.50.0
+        env:
+        - name: BASE_URL
+          value: "http://responseservice-service-v1:8080"
+        volumeMounts:
+        - name: script-volume
+          mountPath: /app
+        command: ["k6", "run", "/app/script.js"]
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+      restartPolicy: Never
+      volumes:
+      - name: script-volume
+        configMap:
+          name: k6-script
+  backoffLimit: 4
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-load-v2
+spec:
+  template:
+    spec:
+      containers:
+      - name: k6
+        image: grafana/k6:0.50.0
+        env:
+        - name: BASE_URL
+          value: "http://responseservice-service-v2:8080"
+        volumeMounts:
+        - name: script-volume
+          mountPath: /app
+        command: ["k6", "run", "/app/script.js"]
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+      restartPolicy: Never
+      volumes:
+      - name: script-volume
+        configMap:
+          name: k6-script
+  backoffLimit: 4

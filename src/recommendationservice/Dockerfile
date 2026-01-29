@@ -14,7 +14,7 @@
 
 # FROM python:3.10.8-slim@sha256:49749648f4426b31b20fca55ad854caa55ff59dc604f2f76b57d814e0a47c181 as base
 
-FROM --platform=$BUILDPLATFORM python:3.10.8-slim as base
+FROM python:3.10.8-slim as base
 
 FROM base as builder
 
@@ -23,7 +23,7 @@ RUN apt-get -qq update \
         wget g++ \
     && rm -rf /var/lib/apt/lists/*
 
-ARG TARGETOS 
+ARG TARGETOS
 ARG TARGETARCH
 RUN echo ${TARGETOS}
 RUN echo ${TARGETARCH}
@@ -41,6 +41,10 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.4.14 && \
 # get packages
 COPY requirements.txt .
 RUN pip install -r requirements.txt
+
+# プロジェクトファイルのコピーとプロトコルバッファの生成
+#COPY . .
+#RUN chmod +x genproto.sh && ./genproto.sh
 
 FROM base as without-grpc-health-probe-bin
 # Enable unbuffered logging

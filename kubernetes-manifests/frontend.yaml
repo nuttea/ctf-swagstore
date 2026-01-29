@@ -19,7 +19,7 @@ metadata:
   labels:
     tags.datadoghq.com/env: "ctf"
     tags.datadoghq.com/service: "frontend"
-    tags.datadoghq.com/version: "0.5.0"
+    tags.datadoghq.com/version: "0.5.0"    
 spec:
   selector:
     matchLabels:
@@ -34,6 +34,7 @@ spec:
         admission.datadoghq.com/enabled: "true"
       annotations:
         sidecar.istio.io/rewriteAppHTTPProbers: "true"
+        ad.datadoghq.com/server.logs: '[{"source": "go", "service": "frontend"}]'     
     spec:
       serviceAccountName: default
       securityContext:
@@ -50,6 +51,7 @@ spec:
                 - all
             privileged: false
             # readOnlyRootFilesystem: true
+          #image: ghcr.io/dd-japan/ctf-swagstore/frontend:latest
           image: frontend
           ports:
           - containerPort: 8080
@@ -84,6 +86,8 @@ spec:
             value: "shippingservice:50051"
           - name: CHECKOUT_SERVICE_ADDR
             value: "checkoutservice:5050"
+          - name: CHATBOT_API_ADDR
+            value: "http://chatbot-api:8080"
           - name: AD_SERVICE_ADDR
             value: "adservice:9555"
           # # ENV_PLATFORM: One of: local, gcp, aws, azure, onprem, alibaba
@@ -92,23 +96,29 @@ spec:
           #   value: "aws"
           - name: ENABLE_TRACING
             value: "0"
-          - name: ENABLE_PROFILER
-            value: "0"
+          #- name: ENABLE_PROFILER
+          #  value: "0"
           # - name: CYMBAL_BRANDING
           #   value: "true"
           - name: DD_PROFILING_ENABLED
             value: "true"
           - name: DD_LOGS_INJECTION
             value: "true"
-          - name: DD_TRACE_SAMPLE_RATE
-            value: "1"
+          - name: DD_TRACE_SAMPLING_RULES
+            value: '[{"service": "frontend", "sample_rate": 0.9}]'
+          - name: DD_APPSEC_ENABLED
+            value: "true"
+          - name: DD_APPSEC_SCA_ENABLED
+            value: "true"
+          - name: DD_DBM_PROPAGATION_MODE
+            value: "full"
           resources:
             requests:
-              cpu: 100m
-              memory: 64Mi
+              cpu: 400m
+              memory: 256Mi
             limits:
-              cpu: 200m
-              memory: 128Mi
+              cpu: 400m
+              memory: 256Mi
 ---
 apiVersion: v1
 kind: Service

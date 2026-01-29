@@ -44,6 +44,14 @@ build:
     context: src/frontend
   - image: adservice
     context: src/adservice
+  - image: chatbot-embedder
+    context: src/chatbot-embedder
+  - image: chatbot-api
+    context: src/chatbot-api
+  - image: attack-simulator
+    context: src/attack-simulator
+  - image: chatbot-attack-simulator
+    context: src/chatbot-attack-simulator
   tagPolicy:
     gitCommit: {}
   local:
@@ -53,6 +61,8 @@ manifests:
   kustomize:
     paths:
     - kubernetes-manifests
+  rawYaml:
+  - ./kubernetes-manifests/chatbot-setup-job.yaml
 deploy:
   kubectl: {}
 # "gcb" profile allows building and pushing the images
@@ -68,7 +78,7 @@ profiles:
   build:
     googleCloudBuild:
       diskSizeGb: 300
-      machineType: N1_HIGHCPU_32
+      machineType: M1_HIGHCPU_32
       timeout: 4000s
 # "debug" profile replaces the default Dockerfile in cartservice with Dockerfile.debug, 
 # which enables debugging via skaffold.

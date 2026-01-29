@@ -16,9 +16,9 @@
 
 # FROM base as builder
 
-FROM --platform=$BUILDPLATFORM node:19.3.0-alpine as base
+FROM node:19.3.0-alpine as base
 
-FROM --platform=$BUILDPLATFORM base as builder
+FROM base as builder
 
 # Some packages (e.g. @google-cloud/profiler) require additional
 # deps for post-install scripts

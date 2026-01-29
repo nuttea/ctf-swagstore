@@ -99,11 +99,18 @@
 
                 <div class="col-lg-5 offset-lg-1 col-xl-4">
 
-                    <form class="cart-checkout-form" action="/cart/checkout" method="POST">
+                    <form class="cart-checkout-form" action="/cart/checkout" method="POST" onsubmit="event.preventDefault(); window.DD_RUM && window.DD_RUM.setUser({email: document.getElementById('email').value, name: document.getElementById('username').value}); this.submit();">
 
                         <div class="row">
                             <div class="col">
                                 <h3>Shipping Address</h3>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="col cymbal-form-field">
+                                <label for="username">User Name</label>
+                                <input type="text" id="username" name="username" placeholder="Your Name" required>
                             </div>
                         </div>
 
@@ -217,6 +224,24 @@
 
                     </form>
 
+                    <script>
+                        function handleFormSubmit() {
+                            var email = document.getElementById('email').value;
+                            var username = document.getElementById('username').value;
+
+                            if (window.DD_RUM) {
+                                window.DD_RUM.setUser({
+                                    email: email,
+                                    name: username
+                                });
+                            }
+
+                            console.log("Datadog RUM setUser called with:", { email: email, name: username });
+
+                            // 実際にフォームを送信する
+                            document.querySelector(".cart-checkout-form").submit();
+                        }
+                    </script>
                 </div>
 
             </div>

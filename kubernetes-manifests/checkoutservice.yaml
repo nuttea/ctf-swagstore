@@ -32,12 +32,17 @@ spec:
         tags.datadoghq.com/service: "checkoutservice"
         tags.datadoghq.com/version: "0.5.0"
         admission.datadoghq.com/enabled: "true"
+      annotations:
+        ad.datadoghq.com/server.logs: '[{"source": "go", "service": "checkoutservice"}]'         
     spec:
       serviceAccountName: default
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
         runAsNonRoot: true
+
+
+
         runAsUser: 1000
       containers:
         - name: server
@@ -48,6 +53,7 @@ spec:
                 - all
             privileged: false
             # readOnlyRootFilesystem: true
+          #image: ghcr.io/dd-japan/ctf-swagstore/checkoutservice:latest
           image: checkoutservice
           ports:
           - containerPort: 5050

@@ -16,6 +16,7 @@
 
 {{ define "product" }}
 {{ template "header" . }}
+
 <div {{ with $.platform_css }} class="{{.}}" {{ end }}>
   <span class="platform-flag">
     {{$.platform_name}}
@@ -35,7 +36,7 @@
           <p class="product-price">{{ renderMoney $.product.Price }}</p>
           <p>{{ $.product.Item.Description }}</p>
 
-          <form method="POST" action="/cart">
+          <form method="POST" action="/cart" onsubmit="addToCartWithRUM(event, '{{$.product.Item.Id}}')">
             <input type="hidden" name="product_id" value="{{$.product.Item.Id}}" />
             <div class="product-quantity-dropdown">
               <select name="quantity" id="quantity">
@@ -63,5 +64,83 @@
    {{ with $.ad }}{{ template "text_ad" . }}{{ end }}
   </div>
 </main>
+
+<script>
+// 商品IDを取得（URLから）
+const productId = '{{$.product.Item.Id}}';
+
+// ページロード時に商品データをFetchでリクエスト（RUMとAPMのトレーシング目的）
+document.addEventListener('DOMContentLoaded', function() {
+  // Datadog RUMでページビューアクションを記録
+  if (window.DD_RUM) {
+    DD_RUM.addAction('product_page_view', {
+      product_id: productId,
+      product_name: '{{$.product.Item.Name}}'
+    });
+  }
+
+  // RUMのトレースIDを取得
+  const traceHeaders = {};
+  if (window.DD_RUM && DD_RUM.getInternalContext) {
+    const context = DD_RUM.getInternalContext();
+    if (context && context.trace_id) {
+      traceHeaders['x-datadog-trace-id'] = context.trace_id.toString();
+      traceHeaders['x-datadog-parent-id'] = context.span_id.toString();
+    }
+  }
+
+  // 商品データをFetchで取得（トレーシング目的、データは既に表示済み）
+  fetch(`/api/product/${productId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...traceHeaders
+    }
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  })
+  .then(data => {
+    // Datadog RUMで成功を記録
+    if (window.DD_RUM) {
+      DD_RUM.addAction('product_data_loaded', {
+        product_id: productId,
+        product_name: data.product.item.name
+      });
+    }
+    console.log('Product data loaded for tracing:', data);
+  })
+  .catch(error => {
+    console.error('Failed to load product for tracing:', error);
+    
+    // Datadog RUMでエラーを記録
+    if (window.DD_RUM) {
+      DD_RUM.addError(error, {
+        product_id: productId,
+        action: 'product_data_load'
+      });
+    }
+  });
+});
+
+// カートに追加時もFetchでRUMとAPMを連携
+function addToCartWithRUM(event, productId) {
+  // Datadog RUMでアクションを開始
+  if (window.DD_RUM) {
+    const quantity = document.getElementById('quantity').value;
+    DD_RUM.addAction('add_to_cart_attempt', {
+      product_id: productId,
+      quantity: quantity
+    });
+  }
+
+  // 通常のフォーム送信を継続（preventDefault しない）
+  return true;
+}
+</script>
+
 {{ template "footer" . }}
 {{ end }}

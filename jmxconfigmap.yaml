@@ -1,0 +1,18 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: jmx-config-map
+  namespace: default
+data:
+  jmx-config: |-
+    ad_identifiers:
+      - adservice
+    init_config: 
+      is_jmx: true
+      collect_default_metrics: true
+    instances:
+      - host: "%%host%%"
+        port: "8081"
+#        tags:
+#          - pod_name: %%kube_pod_name%%
+  

@@ -1,0 +1,170 @@
+{{ define "login" }}
+
+{{ template "header" . }}
+
+<div {{ with $.platform_css }} class="{{.}}" {{ end }}>
+    <span class="platform-flag">
+        {{$.platform_name}}
+    </span>
+</div>
+
+<main role="main" class="login-page">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="login-container">
+                    <div class="login-form-container">
+                        <h2>ログイン</h2>
+                        <form id="loginForm">
+                            <div class="form-group">
+                                <label for="username">ユーザー名:</label>
+                                <div class="input-container">
+                                    <svg class="input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M20.59 22C20.59 18.13 16.74 15 12 15C7.26 15 3.41 18.13 3.41 22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                    <input type="text" id="username" name="username" placeholder="admin" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="password">パスワード:</label>
+                                <div class="input-container">
+                                    <svg class="input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" stroke="currentColor" stroke-width="2"/>
+                                        <circle cx="12" cy="16" r="1" fill="currentColor"/>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                    <input type="password" id="password" name="password" placeholder="••••••••" required>
+                                </div>
+                            </div>
+
+                            <button type="submit" id="loginButton">
+                                <span class="button-text">ログイン</span>
+                                <svg class="button-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-left: 8px;">
+                                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <polyline points="16,17 21,12 16,7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </button>
+                        </form>
+                        
+                        <div id="message" class="message" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+// ログインフォームの送信処理
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const loginButton = document.getElementById('loginButton');
+    const messageDiv = document.getElementById('message');
+    
+    // UI更新
+    loginButton.disabled = true;
+    loginButton.innerHTML = '<span class="spinner"></span><span>ログイン中...</span>';
+    messageDiv.style.display = 'block';
+    messageDiv.className = 'message loading';
+    messageDiv.textContent = 'ログイン処理中...';
+    
+    try {
+        // AbortControllerでタイムアウトを5分に設定
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5分
+        
+        // Fetch APIでログインAPIを呼び出し
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+                // トレーシングヘッダーは RUM SDK が自動的に追加
+            },
+            body: JSON.stringify({
+                username: username,
+                password: password
+            }),
+            signal: controller.signal  // タイムアウト制御用
+        });
+        
+        clearTimeout(timeoutId);  // 成功時はタイムアウトをクリア
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            messageDiv.className = 'message success';
+            
+            // user1の特別なメッセージをチェック
+            if (result.isSpecialUser && username === 'user1') {
+                // 特別なメッセージを表示
+                messageDiv.textContent = result.message;
+                console.log('🎉 SPECIAL USER MESSAGE:', result.message);
+                
+                // 特別なスタイルを適用
+                messageDiv.style.background = 'linear-gradient(135deg, #FFD700, #FFA500)';
+                messageDiv.style.color = '#000';
+                messageDiv.style.fontWeight = 'bold';
+                messageDiv.style.fontSize = '16px';
+                messageDiv.style.padding = '20px';
+                messageDiv.style.borderRadius = '12px';
+                messageDiv.style.boxShadow = '0 4px 20px rgba(255, 215, 0, 0.4)';
+                messageDiv.style.border = '2px solid #FFD700';
+                messageDiv.style.animation = 'pulse 2s infinite';
+                
+                // 長めに表示してからリダイレクト
+                setTimeout(() => {
+                    window.location.href = result.redirectUrl || '/';
+                }, 5000);
+            } else {
+                // 通常のメッセージ
+                messageDiv.textContent = 'ログイン成功！リダイレクトしています...';
+                
+                // 成功時は少し待ってからリダイレクト
+                setTimeout(() => {
+                    window.location.href = result.redirectUrl || '/';
+                }, 1000);
+            }
+        } else {
+            messageDiv.className = 'message error';
+            messageDiv.textContent = result.message || 'ログインに失敗しました。';
+            
+            // エラー時はボタンを再度有効化
+            loginButton.disabled = false;
+            loginButton.innerHTML = '<span class="button-text">ログイン</span><svg class="button-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-left: 8px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="16,17 21,12 16,7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        
+        if (error.name === 'AbortError') {
+            messageDiv.className = 'message error';
+            messageDiv.textContent = 'リクエストがタイムアウトしました（5分経過）';
+        } else {
+            messageDiv.className = 'message error';
+            messageDiv.textContent = 'ネットワークエラーが発生しました。';
+        }
+        
+        // エラー時はボタンを再度有効化
+        loginButton.disabled = false;
+        loginButton.innerHTML = '<span class="button-text">ログイン</span><svg class="button-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-left: 8px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="16,17 21,12 16,7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+});
+
+// デバッグ用：リクエストヘッダーを確認
+if (window.DD_RUM) {
+    console.log('✅ Datadog RUM が検出されました');
+    console.log('ℹ️  allowedTracingUrls の設定を確認してください');
+} else {
+    console.log('⚠️  Datadog RUM が検出されませんでした');
+}
+</script>
+</main>
+
+{{ template "footer" . }}
+
+{{ end }}

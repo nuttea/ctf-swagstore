@@ -51,6 +51,9 @@ grpcio-health-checking==1.51.1
     # via -r requirements.in
 grpcio-status==1.51.1
     # via google-api-core
+grpcio==1.51.1
+grpcio-tools==1.51.1
+
 httplib2==0.21.0
     # via
     #   google-api-python-client

@@ -1,0 +1,465 @@
+# Copyright 2018 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+type: Opaque
+data:
+  password: cGFzc3dvcmQ=  # base64 encoded "password"
+  username: cG9zdGdyZXM=  # base64 encoded "postgres"
+  datadog-password: ZGF0YWRvZw==  # base64 encoded "datadog"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+data:
+  database: swagstoredb
+  postgresql.conf: |
+    # Basic configuration
+    listen_addresses = '*'
+    port = 5432
+    
+    # Enable pg_stat_statements extension
+    shared_preload_libraries = 'pg_stat_statements'
+    
+    # pg_stat_statements configuration
+    pg_stat_statements.max = 10000
+    pg_stat_statements.track = all
+    pg_stat_statements.track_utility = off
+    pg_stat_statements.save = on
+    
+    # Logging configuration
+    log_statement = 'all'
+    log_duration = on
+    log_connections = on
+    log_disconnections = on
+  init-db.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "Starting database initialization..."
+    
+    # Wait for PostgreSQL to be ready
+    until pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do
+      echo "Waiting for PostgreSQL to be ready..."
+      sleep 2
+    done
+    
+    echo "PostgreSQL is ready. Creating database and tables..."
+    
+    # Create swagstoredb database if it doesn't exist
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+    SELECT 'CREATE DATABASE swagstoredb'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'swagstoredb');
+    \gexec
+    EOSQL
+    
+    echo "Database swagstoredb created or already exists."
+    
+    # Configure the default postgres database for Datadog DBM
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "postgres" <<-EOSQL
+    
+    -- Enable pg_stat_statements extension for Datadog DBM
+    CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+    
+    -- Create Datadog monitoring user if not exists
+    DO \$\$
+    BEGIN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = 'datadog') THEN
+            CREATE USER datadog WITH PASSWORD 'datadog';
+        END IF;
+    END
+    \$\$;
+    
+    -- Grant necessary permissions for Datadog DBM
+    GRANT pg_monitor TO datadog;
+    -- 重要：datadogユーザーがpg_monitorロールから権限を継承できるようにする
+    ALTER ROLE datadog INHERIT;
+    
+    GRANT SELECT ON pg_stat_database TO datadog;
+    GRANT SELECT ON pg_stat_database_conflicts TO datadog;
+    GRANT SELECT ON pg_stat_bgwriter TO datadog;
+    GRANT SELECT ON pg_stat_archiver TO datadog;
+    GRANT SELECT ON pg_stat_user_tables TO datadog;
+    GRANT SELECT ON pg_stat_user_indexes TO datadog;
+    GRANT SELECT ON pg_statio_user_tables TO datadog;
+    GRANT SELECT ON pg_statio_user_indexes TO datadog;
+    GRANT SELECT ON pg_stat_replication TO datadog;
+    GRANT SELECT ON pg_stat_statements TO datadog;
+    GRANT SELECT ON pg_stat_activity TO datadog;
+    GRANT CONNECT ON DATABASE postgres TO datadog;
+    
+    -- Create the datadog schema
+    CREATE SCHEMA IF NOT EXISTS datadog;
+    GRANT USAGE ON SCHEMA datadog TO datadog;
+    GRANT CREATE ON SCHEMA datadog TO datadog;
+    
+    -- Create the explain_statement function for Query Samples
+    CREATE OR REPLACE FUNCTION datadog.explain_statement(
+       l_query TEXT,
+       OUT explain JSON
+    )
+    RETURNS SETOF JSON AS
+    \$\$
+    DECLARE
+    curs REFCURSOR;
+    plan JSON;
+    
+    BEGIN
+       OPEN curs FOR EXECUTE pg_catalog.concat('EXPLAIN (FORMAT JSON) ', l_query);
+       FETCH curs INTO plan;
+       CLOSE curs;
+       RETURN QUERY SELECT plan;
+    END;
+    \$\$
+    LANGUAGE 'plpgsql'
+    RETURNS NULL ON NULL INPUT
+    SECURITY DEFINER;
+    
+    EOSQL
+    
+    echo "Default postgres database configured for Datadog DBM."
+    
+    # Configure the swagstoredb database for Datadog DBM
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "swagstoredb" <<-EOSQL
+    
+    -- Enable pg_stat_statements extension for Datadog DBM
+    CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+    
+    -- ===== Chatbot RAG Setup =====
+    -- Enable pgvector extension for chatbot RAG functionality
+    CREATE EXTENSION IF NOT EXISTS vector;
+    
+    -- Create product embeddings table for RAG
+    CREATE TABLE IF NOT EXISTS product_embeddings (
+        id SERIAL PRIMARY KEY,
+        product_id VARCHAR(50) NOT NULL,
+        product_name VARCHAR(255) NOT NULL,
+        description TEXT,
+        price_usd DECIMAL(10, 2),
+        categories TEXT,
+        picture VARCHAR(500),
+        embedding vector(1024),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(product_id)
+    );
+    
+    -- Create indexes for fast vector search
+    CREATE INDEX IF NOT EXISTS product_embeddings_vector_idx 
+    ON product_embeddings USING hnsw (embedding vector_cosine_ops);
+    
+    CREATE INDEX IF NOT EXISTS product_embeddings_product_id_idx 
+    ON product_embeddings(product_id);
+    
+    -- Create update trigger
+    CREATE OR REPLACE FUNCTION update_updated_at_column()
+    RETURNS TRIGGER AS \$func\$
+    BEGIN
+        NEW.updated_at = CURRENT_TIMESTAMP;
+        RETURN NEW;
+    END;
+    \$func\$ language 'plpgsql';
+    
+    DROP TRIGGER IF EXISTS update_product_embeddings_updated_at ON product_embeddings;
+    CREATE TRIGGER update_product_embeddings_updated_at 
+    BEFORE UPDATE ON product_embeddings 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+    -- ===== End Chatbot RAG Setup =====
+    
+    -- Grant necessary permissions for Datadog DBM on swagstoredb
+    GRANT CONNECT ON DATABASE swagstoredb TO datadog;
+    
+    -- Grant schema permissions first
+    GRANT USAGE ON SCHEMA public TO datadog;
+    
+    ALTER ROLE datadog INHERIT;
+    
+    -- Create the datadog schema
+    CREATE SCHEMA IF NOT EXISTS datadog;
+    GRANT USAGE ON SCHEMA datadog TO datadog;
+    GRANT CREATE ON SCHEMA datadog TO datadog;
+    
+    -- Create the explain_statement function for Query Samples
+    CREATE OR REPLACE FUNCTION datadog.explain_statement(
+       l_query TEXT,
+       OUT explain JSON
+    )
+    RETURNS SETOF JSON AS
+    \$\$
+    DECLARE
+    curs REFCURSOR;
+    plan JSON;
+    
+    BEGIN
+       OPEN curs FOR EXECUTE pg_catalog.concat('EXPLAIN (FORMAT JSON) ', l_query);
+       FETCH curs INTO plan;
+       CLOSE curs;
+       RETURN QUERY SELECT plan;
+    END;
+    \$\$
+    LANGUAGE 'plpgsql'
+    RETURNS NULL ON NULL INPUT
+    SECURITY DEFINER;
+    
+    -- Create application tables
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Insert test users
+    INSERT INTO users (username, password) VALUES 
+      ('admin', 'admin123') ON CONFLICT (username) DO NOTHING;
+    INSERT INTO users (username, password) VALUES 
+      ('user1', 'password1') ON CONFLICT (username) DO NOTHING;
+    INSERT INTO users (username, password) VALUES 
+      ('test', 'test123') ON CONFLICT (username) DO NOTHING;
+    INSERT INTO users (username, password) VALUES 
+      ('ctf', 'flag{sql_injection_detected}') ON CONFLICT (username) DO NOTHING;
+    
+    -- 商品テーブル（productcatalogservice用）
+    CREATE TABLE products (
+        id VARCHAR(50) NOT NULL,  -- PRIMARY KEYを削除してindexなしにする
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        picture VARCHAR(255),
+        price_usd_units BIGINT NOT NULL,
+        price_usd_nanos INT NOT NULL,
+        categories TEXT[]
+    );
+    
+    -- 商品データを挿入（既存の9件のみ）
+    INSERT INTO products (id, name, description, picture, price_usd_units, price_usd_nanos, categories) VALUES
+      ('0PUK6V6EV0', 'Dog Headphones', 'You feel it the minute you put them on. The soft, plush cushions seal you in.', '/static/img/products/headphones.jpg', 229, 990000000, ARRAY['accessories']),
+      ('1YMWWN1N4O', 'Dog Steel Bottle', 'NoLimit - robust stainless steel vacuum flask including sports lid.', '/static/img/products/steel-bottle.jpg', 35, 970000000, ARRAY['accessories']),
+      ('2ZYFJ3GM2N', 'Dog T-shirt', 'Perfectly cropped cotton t-shirt. Short sleeves.', '/static/img/products/t-shirt.jpg', 29, 990000000, ARRAY['clothing', 't-shirt']),
+      ('66VCHSJNUP', 'Dog T-shirt I love you', 'Perfectly cropped cotton t-shirt. Short sleeves.', '/static/img/products/t-shirt-i-love-u.jpg', 29, 990000000, ARRAY['clothing', 't-shirt']),
+      ('6E92ZMYYFZ', 'Dog Sweatshirt gray', 'Perfectly cropped cotton sweatshirt. Long sleeves.', '/static/img/products/sweatshirt-gray.jpg', 39, 990000000, ARRAY['clothing', 'sweatshirt']),
+      ('9SIQT8TOJO', 'Dog Sweatshirt black', 'Perfectly cropped cotton sweatshirt. Long sleeves.', '/static/img/products/sweatshirt-black.jpg', 45, 990000000, ARRAY['clothing', 'sweatshirt']),
+      ('OLJCESPC7Z', 'Dog Notebook', 'The perfect companion for taking notes during your meetings.', '/static/img/products/notebook.jpg', 19, 990000000, ARRAY['accessories', 'office']),
+      ('L9ECAV7KIM', 'Dog SKO Notebook', 'The perfect companion for taking notes during SKOs.', '/static/img/products/sko-notebook.jpg', 19, 990000000, ARRAY['accessories', 'office']),
+      ('LS4PSXUNUM', 'Dog Mug', 'A simple mug with a nice branding.', '/static/img/products/mug.jpg', 8, 990000000, ARRAY['kitchen']);
+    
+    -- 遅いクエリを実行する関数（商品検索用）
+    CREATE OR REPLACE FUNCTION simulate_slow_product_queries()
+    RETURNS VOID AS \$\$
+    DECLARE
+        dummy_record RECORD;
+    BEGIN
+        -- 遅いクエリ1: カテゴリでの検索（インデックスなし）
+        FOR dummy_record IN
+            SELECT p.id, p.name, p.description, p.price_usd_units, p.price_usd_nanos
+            FROM products p
+            WHERE 'clothing' = ANY(p.categories)
+            ORDER BY p.price_usd_units DESC
+            LIMIT 10
+        LOOP
+            -- 何もしない
+        END LOOP;
+        
+        -- 遅いクエリ2: 商品名での部分一致検索（インデックスなし）
+        FOR dummy_record IN
+            SELECT p.id, p.name, p.description
+            FROM products p
+            WHERE LOWER(p.name) LIKE '%dog%'
+            OR LOWER(p.description) LIKE '%dog%'
+            ORDER BY p.name
+        LOOP
+            -- 何もしない
+        END LOOP;
+    END;
+    \$\$ LANGUAGE plpgsql;
+    
+    -- 権限を付与
+    GRANT SELECT ON public.users TO datadog;
+    GRANT SELECT ON public.products TO datadog;
+    
+    -- 確認
+    SELECT 'Table users created successfully with ' || COUNT(*) || ' records' FROM users;
+    SELECT 'Table products created successfully with ' || COUNT(*) || ' records' FROM products;
+    
+    EOSQL
+    
+    echo "SwagStore database initialization completed successfully."
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      initContainers:
+      - name: init-postgres
+        image: pgvector/pgvector:pg15
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          echo "Fixing permissions for PostgreSQL data directory..."
+          mkdir -p /var/lib/postgresql/data/pgdata
+          chown -R 999:999 /var/lib/postgresql/data
+          chmod 700 /var/lib/postgresql/data/pgdata
+          echo "Permissions fixed successfully"
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+      containers:
+      - name: postgres
+        image: pgvector/pgvector:pg15
+        ports:
+        - containerPort: 5432
+        securityContext:
+          runAsUser: 999
+          runAsGroup: 999
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: database
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        - name: POSTGRES_INITDB_ARGS
+          value: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+        command: ["docker-entrypoint.sh"]
+        args: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "pg_stat_statements.max=10000", "-c", "pg_stat_statements.track=all"]
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        - name: init-script
+          mountPath: /docker-entrypoint-initdb.d
+          readOnly: true
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 512Mi
+            cpu: 500m
+          requests:
+            cpu: 250m
+            memory: 256Mi
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+      - name: init-script
+        configMap:
+          name: postgres-config
+          items:
+          - key: init-db.sh
+            path: init.sh
+            mode: 0755
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    tags.datadoghq.com/env: 'ctf'
+    tags.datadoghq.com/service: 'postgres'
+  annotations:
+    ad.datadoghq.com/service.checks: |
+      {
+        "postgres": {
+          "init_config": {},
+          "instances": [
+            {
+              "dbm": true,
+              "host": "%%host%%",
+              "port": 5432,
+              "username": "datadog",
+              "password": "datadog",
+              "dbname": "swagstoredb",
+              "collect_schemas": {
+                "enabled": true
+              },
+              "relations": [
+                {
+                  "relation_regex": ".*"
+                }
+              ]
+            }
+          ]
+        }
+      }
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+  - name: tcp-postgres
+    port: 5432
+    targetPort: 5432 

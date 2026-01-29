@@ -1,0 +1,75 @@
+# チャットボット商品埋め込み生成Job
+# PostgreSQL起動後に自動実行されます（pgvectorはpostgres起動時に自動セットアップ）
+# AWS認証情報Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-bedrock-credentials
+type: Opaque
+stringData:
+  AWS_REGION: "ap-northeast-1"
+  AWS_ACCESS_KEY_ID: "YOUR_AWS_ACCESS_KEY_ID"
+  AWS_SECRET_ACCESS_KEY: "YOUR_AWS_SECRET_ACCESS_KEY"
+
+---
+# 商品埋め込み生成Job（デプロイ時に実行）
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: chatbot-embed-products
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: chatbot-setup
+        component: embedder
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: embed-products
+        image: koheisato353/chatbot-embedder:v1
+        imagePullPolicy: Always
+        command: ["/app/chatbot-embedder"]
+        env:
+        - name: POSTGRES_HOST
+          value: "postgres"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "password"
+        - name: POSTGRES_DB
+          value: "swagstoredb"
+        - name: AWS_REGION
+          valueFrom:
+            secretKeyRef:
+              name: aws-bedrock-credentials
+              key: AWS_REGION
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-bedrock-credentials
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-bedrock-credentials
+              key: AWS_SECRET_ACCESS_KEY
+        - name: BEDROCK_EMBEDDING_MODEL
+          value: "amazon.titan-embed-text-v2:0"
+        - name: EMBEDDING_DIMENSIONS
+          value: "1024"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+

@@ -17,6 +17,7 @@
 {{ define "home" }}
 
 {{ template "header" . }}
+
 <div {{ with $.platform_css }} class="{{.}}" {{ end }}>
   <span class="platform-flag">
     {{$.platform_name}}
@@ -35,8 +36,8 @@
 
       <div class="col-12 col-lg-8">
 
+        <!-- Hot Products section -->
         <div class="row hot-products-row px-xl-6">
-
           <div class="col-12">
             <h3>Hot Products</h3>
           </div>
@@ -53,7 +54,6 @@
             </div>
           </div>
           {{ end }}
-
         </div>
 
         <!-- Footer for larger screens. -->

@@ -32,6 +32,9 @@ spec:
         tags.datadoghq.com/service: "cartservice"
         tags.datadoghq.com/version: "0.5.0"
         admission.datadoghq.com/enabled: "true"
+      annotations:
+      #  admission.datadoghq.com/dotnet-lib.version: "latest"
+        ad.datadoghq.com/server.logs: '[{"source": "dotnet", "service": "cartservice"}]'         
     spec:
       serviceAccountName: default
       terminationGracePeriodSeconds: 5
@@ -49,6 +52,7 @@ spec:
               - all
           privileged: false
           # readOnlyRootFilesystem: true
+        #image: ghcr.io/dd-japan/ctf-swagstore/cartservice:latest
         image: cartservice
         ports:
         - containerPort: 7070

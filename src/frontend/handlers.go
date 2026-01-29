@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"math/rand"
@@ -158,6 +159,15 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve product"), http.StatusInternalServerError)
 		return
 	}
+	
+	// デバッグ：productcatalogserviceから取得した価格データを確認
+	// if p.GetPriceUsd() != nil {
+	//	log.Infof("DEBUG: Product %s received price from productcatalogservice: units=%d, nanos=%d", 
+	//		p.GetId(), p.GetPriceUsd().GetUnits(), p.GetPriceUsd().GetNanos())
+	// } else {
+	//	log.Infof("DEBUG: Product %s received NULL price from productcatalogservice", p.GetId())
+	// }
+	
 	currencies, err := fe.getCurrencies(r.Context())
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
@@ -175,12 +185,35 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to convert currency"), http.StatusInternalServerError)
 		return
 	}
+	
+	// デバッグ：通貨変換後の価格データを確認
+	// if price != nil {
+	//	log.Infof("DEBUG: Product %s converted price: units=%d, nanos=%d", 
+	//		p.GetId(), price.GetUnits(), price.GetNanos())
+	// } else {
+	//	log.Infof("DEBUG: Product %s converted price is NULL", p.GetId())
+	// }
+
+   	// 推奨商品を非同期で取得
+   	var recommendationsChan = make(chan []*pb.Product, 1)
+   	go func() {
+   		recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), []string{id})
+   		if err != nil {
+   			log.WithField("error", err).Warn("failed to get product recommendations")
+   			recommendationsChan <- []*pb.Product{}
+   		} else {
+   			recommendationsChan <- recommendations
+   		}
+   	}()
+
+   	// 結果を待つ
+   	recommendations := <-recommendationsChan
 
 	// ignores the error retrieving recommendations since it is not critical
-	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), []string{id})
-	if err != nil {
-		log.WithField("error", err).Warn("failed to get product recommendations")
-	}
+	//recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), []string{id})
+	//if err != nil {
+	//	log.WithField("error", err).Warn("failed to get product recommendations")
+	//}
 
 	product := struct {
 		Item  *pb.Product
@@ -204,6 +237,50 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 	}); err != nil {
 		log.Println(err)
 	}
+}
+
+// JSON形式で商品データを返すAPIエンドポイント
+func (fe *frontendServer) productAPIHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	id := mux.Vars(r)["id"]
+	if id == "" {
+		http.Error(w, "product id not specified", http.StatusBadRequest)
+		return
+	}
+
+	log.WithField("id", id).WithField("currency", currentCurrency(r)).
+		Debug("serving product API")
+
+	p, err := fe.getProduct(r.Context(), id)
+	if err != nil {
+		http.Error(w, "could not retrieve product", http.StatusInternalServerError)
+		return
+	}
+
+	price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
+	if err != nil {
+		http.Error(w, "failed to convert currency", http.StatusInternalServerError)
+		return
+	}
+
+	// 推奨商品を取得
+	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), []string{id})
+	if err != nil {
+		log.WithField("error", err).Warn("failed to get product recommendations")
+		recommendations = []*pb.Product{}
+	}
+
+	// JSON形式でレスポンスを返す
+	response := map[string]interface{}{
+		"product": map[string]interface{}{
+			"item":  p,
+			"price": price,
+		},
+		"recommendations": recommendations,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Request) {

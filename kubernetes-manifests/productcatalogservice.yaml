@@ -32,6 +32,10 @@ spec:
         tags.datadoghq.com/service: "productcatalogservice"
         tags.datadoghq.com/version: "0.5.0"
         admission.datadoghq.com/enabled: "true"
+      annotations:
+        ad.datadoghq.com/tags: '{"git.commit.sha": "ba963843f0b5d1c540ddb6d07103c03a7e2fd7c9",
+         "git.repository_url": "https://github.com/dd-japan/swagstore", "git.branch": "prototype-for-kddi"}'
+        ad.datadoghq.com/server.logs: '[{"source": "go", "service": "productcatalogservice"}]'
     spec:
       serviceAccountName: default
       terminationGracePeriodSeconds: 5
@@ -42,37 +46,52 @@ spec:
         runAsUser: 1000
       containers:
       - name: server
-        # securityContext:
-          # allowPrivilegeEscalation: false
-          # capabilities:
-          #   drop:
-          #     - all
-          # privileged: false
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - all
+          privileged: false
           # readOnlyRootFilesystem: true
+        #image: ghcr.io/dd-japan/ctf-swagstore/productcatalogservice:latest
         image: productcatalogservice
         ports:
         - containerPort: 3550
         env:
         - name: PORT
           value: "3550"
+        - name: POSTGRES_HOST
+          value: "postgres"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "password"
+        - name: POSTGRES_DB
+          value: "swagstoredb"
         - name: DISABLE_STATS
           value: "1"
         - name: DISABLE_TRACING
-          value: "1"
-        - name: DISABLE_PROFILER
-          value: "1"
-        - name: DD_PROFILING_ENABLED
+          value: "0"
+        - name: DD_TRACE_ENABLED
           value: "true"
-        - name: DD_LOGS_INJECTION
+        - name: DD_TRACE_SQL_ENABLED
           value: "true"
         - name: DD_TRACE_SAMPLE_RATE
           value: "1"
-        # readinessProbe:
-        #   exec:
-        #     command: ["/bin/grpc_health_probe", "-addr=:3550"]
-        # livenessProbe:
-        #   exec:
-        #     command: ["/bin/grpc_health_probe", "-addr=:3550"]
+        - name: DD_SERVICE
+          value: "productcatalogservice"
+        - name: DD_VERSION
+          value: "1.0.0"
+        - name: DD_ENV
+          value: "ctf"
+        - name: DD_TRACE_STARTUP_LOGS
+          value: "true"
+        #- name: DISABLE_PROFILER
+        #  value: "1"
+        - name: DD_PROFILING_ENABLED
+          value: "true"
         resources:
           requests:
             cpu: 100m
