@@ -42,8 +42,8 @@ spec:
                           "pattern" : "\\{"
                         }]
           }]
-        ad.datadoghq.com/tags: '{"git.commit.sha": "41b010236b379372e4b8143d2e96f0e2d71c1b9e",
-                 "git.repository_url": "https://github.com/dd-japan/ctf-swagstore", "git.branch": "2025-1H"}'
+        ad.datadoghq.com/tags: '{"git.commit.sha": "fb4a19adcf86cc37714fc3b98c9207ecfa61f1b6",
+                 "git.repository_url": "https://github.com/dd-japan/ctf-swagstore", "git.branch": "bryant-branch"}'
     spec:
       serviceAccountName: default
       terminationGracePeriodSeconds: 5
@@ -83,7 +83,7 @@ spec:
         - name: DD_DYNAMIC_INSTRUMENTATION_ENABLED
           value: "true"
         - name: DD_GIT_COMMIT_SHA
-          value: "41b010236b379372e4b8143d2e96f0e2d71c1b9e"
+          value: "fb4a19adcf86cc37714fc3b98c9207ecfa61f1b6"
         - name: DD_GIT_REPOSITORY_URL
           value: "https://github.com/dd-japan/ctf-swagstore"
         # readinessProbe:

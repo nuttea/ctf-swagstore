@@ -92,6 +92,12 @@ spec:
         #  value: "1"
         - name: DD_PROFILING_ENABLED
           value: "true"
+        - name: DD_DYNAMIC_INSTRUMENTATION_ENABLED
+          value: "true"
+        - name: DD_GIT_COMMIT_SHA
+          value: "fb4a19adcf86cc37714fc3b98c9207ecfa61f1b6"
+        - name: DD_GIT_REPOSITORY_URL
+          value: "https://github.com/dd-japan/ctf-swagstore"
         resources:
           requests:
             cpu: 100m
