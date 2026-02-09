@@ -54,9 +54,11 @@ build:
     context: src/chatbot-attack-simulator
   tagPolicy:
     gitCommit: {}
-  local:
-    # useBuildkit: false
-    useBuildkit: true
+  googleCloudBuild:
+    projectId: datadog-sandbox
+    diskSizeGb: 300
+    machineType: N1_HIGHCPU_32
+    timeout: 4000s
 manifests:
   kustomize:
     paths:
@@ -65,14 +67,10 @@ manifests:
   - ./kubernetes-manifests/chatbot-setup-job.yaml
 deploy:
   kubectl: {}
-# "gcb" profile allows building and pushing the images
-# on Google Container Builder without requiring docker
-# installed on the developer machine. However, note that
-# since GCB does not cache the builds, each build will
+# "gcb" profile provides an alternative Cloud Build configuration
+# with different machine specs. The default build now uses Cloud Build.
+# Note: Since GCB does not cache the builds, each build will
 # start from scratch and therefore take a long time.
-#
-# This is not used by default. To use it, run:
-#     skaffold run -p gcb
 profiles:
 - name: gcb
   build:
@@ -111,6 +109,11 @@ build:
   artifacts:
   - image: loadgenerator
     context: src/loadgenerator
+  googleCloudBuild:
+    projectId: datadog-sandbox
+    diskSizeGb: 300
+    machineType: N1_HIGHCPU_32
+    timeout: 4000s
 manifests:
   rawYaml:
   - ./kubernetes-manifests/loadgenerator.yaml

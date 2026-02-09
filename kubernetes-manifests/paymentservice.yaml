@@ -80,10 +80,12 @@ spec:
           value: "true"
         - name: DD_RUNTIME_METRICS_ENABLED
           value: "true"
-        #- name: DD_GIT_COMMIT_SHA
-        #  value: "f067fe3"
-        #- name: DD_GIT_REPOSITORY_URL
-        #  value: "https://github.com/dd-japan/swagstore/tree/prototype-for-training"
+        - name: DD_DYNAMIC_INSTRUMENTATION_ENABLED
+          value: "true"
+        - name: DD_GIT_COMMIT_SHA
+          value: "41b010236b379372e4b8143d2e96f0e2d71c1b9e"
+        - name: DD_GIT_REPOSITORY_URL
+          value: "https://github.com/dd-japan/ctf-swagstore"
         # readinessProbe:
         #   exec:
         #     command: ["/bin/grpc_health_probe", "-addr=:50051"]
