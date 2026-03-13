@@ -116,7 +116,7 @@ spec:
         - name: DD_LLMOBS_AGENTLESS_ENABLED
           value: "false"
         - name: DD_API_KEY
-          value: "YOUR_DATADOG_API_KEY"
+          value: "57d2e07ab5f5de8153c289dde034d291"
         
         resources:
           requests:
