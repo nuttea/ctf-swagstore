@@ -52,7 +52,7 @@ spec:
               - all
           privileged: false
           # readOnlyRootFilesystem: true
-        image: ghcr.io/dd-japan/ctf-swagstore/cartservice:latest
+        image: gcr.io/datadog-ese-sandbox/cartservice:latest
         #image: cartservice
         ports:
         - containerPort: 7070

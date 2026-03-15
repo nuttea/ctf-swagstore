@@ -53,7 +53,7 @@ spec:
                 - all
             privileged: false
             # readOnlyRootFilesystem: true
-          image: ghcr.io/dd-japan/ctf-swagstore/checkoutservice:latest
+          image: gcr.io/datadog-ese-sandbox/checkoutservice:latest
           #image: checkoutservice
           ports:
           - containerPort: 5050

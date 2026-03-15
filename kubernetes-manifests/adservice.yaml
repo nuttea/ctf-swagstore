@@ -99,7 +99,7 @@ spec:
               - all
           privileged: false
         #   readOnlyRootFilesystem: true
-        image: ghcr.io/dd-japan/ctf-swagstore/adservice:latest
+        image: gcr.io/datadog-ese-sandbox/adservice:latest
         #image: adservice
         ports:
         - containerPort: 9555

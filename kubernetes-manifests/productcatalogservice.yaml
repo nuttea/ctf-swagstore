@@ -53,7 +53,7 @@ spec:
               - all
           privileged: false
           # readOnlyRootFilesystem: true
-        image: ghcr.io/dd-japan/ctf-swagstore/productcatalogservice:latest
+        image: gcr.io/datadog-ese-sandbox/productcatalogservice:latest
         #image: productcatalogservice
         ports:
         - containerPort: 3550

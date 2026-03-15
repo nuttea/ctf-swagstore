@@ -61,7 +61,7 @@ spec:
               - all
           privileged: false
           # readOnlyRootFilesystem: true
-        image: ghcr.io/dd-japan/ctf-swagstore/paymentservice:latest
+        image: gcr.io/datadog-ese-sandbox/paymentservice:latest
         #image: paymentservice
         ports:
         - containerPort: 50051

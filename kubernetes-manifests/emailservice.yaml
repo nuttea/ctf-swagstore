@@ -52,7 +52,7 @@ spec:
         #       - all
         #   privileged: false
         #   readOnlyRootFilesystem: true
-        image: ghcr.io/dd-japan/ctf-swagstore/emailservice:latest
+        image: gcr.io/datadog-ese-sandbox/emailservice:latest
         #image: emailservice
         ports:
         - containerPort: 8080
