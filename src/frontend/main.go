@@ -1,22 +1,9 @@
-// Copyright 2018 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package main
 
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -94,6 +81,7 @@ type frontendServer struct {
 }
 
 func main() {
+	// trigger skaffold build
 	tracer.Start(tracer.WithRuntimeMetrics())
 	defer tracer.Stop()
 	ctx := context.Background()
@@ -975,4 +963,61 @@ func mustConnGRPC(ctx context.Context, conn **grpc.ClientConn, addr string) {
 	if err != nil {
 		panic(errors.Wrapf(err, "grpc: failed to connect %s", addr))
 	}
+}
+
+// Chatbot API Proxy Handler
+func chatbotProxyHandler(w http.ResponseWriter, r *http.Request) {
+	span, _ := tracer.StartSpanFromContext(r.Context(), "chatbot.proxy")
+	defer span.Finish()
+	
+	span.SetTag("http.method", r.Method)
+	span.SetTag("http.url", r.URL.Path)
+	
+	// Chatbot APIサービスのアドレス
+	chatbotAPIAddr := os.Getenv("CHATBOT_API_ADDR")
+	if chatbotAPIAddr == "" {
+		chatbotAPIAddr = "http://chatbot-api:8080"
+	}
+	
+	// プロキシ先のURLを構築
+	targetURL := chatbotAPIAddr + "/api/chat"
+	
+	// 新しいHTTPリクエストを作成
+	proxyReq, err := http.NewRequestWithContext(r.Context(), "POST", targetURL, r.Body)
+	if err != nil {
+		span.SetTag("error", true)
+		span.SetTag("error.msg", err.Error())
+		http.Error(w, "Failed to create proxy request", http.StatusInternalServerError)
+		return
+	}
+	
+	// ヘッダーをコピー
+	proxyReq.Header.Set("Content-Type", "application/json")
+	
+	// リクエストを実行
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		span.SetTag("error", true)
+		span.SetTag("error.msg", err.Error())
+		http.Error(w, "Failed to proxy request", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+	
+	// レスポンスボディを読み取る
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		span.SetTag("error", true)
+		span.SetTag("error.msg", err.Error())
+		http.Error(w, "Failed to read response body", http.StatusInternalServerError)
+		return
+	}
+	
+	// Content-Typeを設定
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	w.Write(body)
+	
+	span.SetTag("http.status_code", resp.StatusCode)
 }

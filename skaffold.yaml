@@ -57,6 +57,8 @@ manifests:
   kustomize:
     paths:
     - kubernetes-manifests
+  rawYaml:
+  - ./kubernetes-manifests/chatbot-setup-job.yaml
 deploy:
   kubectl: {}
 # "gcb" profile allows building and pushing the images

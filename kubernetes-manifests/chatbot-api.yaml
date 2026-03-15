@@ -1,0 +1,143 @@
+# Chatbot API Service - Python + Datadog LLM Observability
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatbot-api
+  labels:
+    app: chatbot-api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: chatbot-api
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot-api
+  labels:
+    app: chatbot-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chatbot-api
+  template:
+    metadata:
+      labels:
+        app: chatbot-api
+        tags.datadoghq.com/service: chatbot-api
+        tags.datadoghq.com/env: ctf
+        tags.datadoghq.com/version: "1.0.0"
+      annotations:
+        ad.datadoghq.com/chatbot-api.logs: '[{"source":"python","service":"chatbot-api"}]'
+    spec:
+      containers:
+      - name: chatbot-api
+        image: chatbot-api
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        env:
+        # AWS Bedrock Configuration
+        - name: AWS_REGION
+          valueFrom:
+            secretKeyRef:
+              name: aws-bedrock-credentials
+              key: AWS_REGION
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-bedrock-credentials
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-bedrock-credentials
+              key: AWS_SECRET_ACCESS_KEY
+        
+        # PostgreSQL Configuration
+        - name: POSTGRES_HOST
+          value: "postgres"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "password"
+        - name: POSTGRES_DB
+          value: "swagstoredb"
+        
+        # LLM Configuration
+        - name: LLM_MODEL_ID
+          value: "anthropic.claude-3-haiku-20240307-v1:0"
+        - name: EMBEDDING_MODEL_ID
+          value: "amazon.titan-embed-text-v2:0"
+        - name: RAG_TOP_K
+          value: "5"
+        
+        # Datadog Configuration
+        - name: DD_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: DD_ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/env']
+        - name: DD_SERVICE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/service']
+        - name: DD_VERSION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/version']
+        - name: DD_LOGS_INJECTION
+          value: "true"
+        - name: DD_TRACE_SAMPLE_RATE
+          value: "1"
+        - name: DD_PROFILING_ENABLED
+          value: "true"
+        - name: DD_SITE
+          value: "datadoghq.com"
+        
+        # LLM Observability Configuration
+        - name: DD_LLMOBS_ENABLED
+          value: "true"
+        - name: DD_LLMOBS_ML_APP
+          value: "swagstore-chatbot"
+        - name: DD_LLMOBS_AGENTLESS_ENABLED
+          value: "false"
+        - name: DD_API_KEY
+          value: "57d2e07ab5f5de8153c289dde034d291"
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
