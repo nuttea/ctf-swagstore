@@ -29,6 +29,344 @@
         Swagstore
         {{ end }}
     </title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB"
+        crossorigin="anonymous">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="/static/styles/styles.css">
+    <link rel="stylesheet" type="text/css" href="/static/styles/cart.css">
+    <link rel="stylesheet" type="text/css" href="/static/styles/order.css">
+    
+    <!-- Login page styles -->
+    <style>
+        .login-page {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 20px 0;
+        }
+        .login-page .login-container {
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 0;
+        }
+        .login-page .login-form-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1), 0 5px 15px rgba(0,0,0,0.07);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        .login-page .login-form-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb, #f5576c);
+            background-size: 300% 100%;
+            animation: shimmer 3s ease-in-out infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 100% 0; }
+            50% { background-position: 0% 0; }
+            100% { background-position: 100% 0; }
+        }
+        .login-page h2 {
+            text-align: center;
+            color: #2d3748;
+            margin-bottom: 35px;
+            font-weight: 700;
+            font-size: 28px;
+            position: relative;
+        }
+        .login-page h2::after {
+            content: '';
+            display: block;
+            width: 50px;
+            height: 3px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            margin: 15px auto 0;
+            border-radius: 2px;
+        }
+        .login-page .form-group {
+            margin-bottom: 25px;
+            position: relative;
+        }
+        .login-page label {
+            display: block;
+            margin-bottom: 8px;
+            color: #4a5568;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .login-page .input-container {
+            position: relative;
+        }
+        .login-page .input-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #a0aec0;
+            z-index: 2;
+        }
+        .login-page input[type="text"], .login-page input[type="password"] {
+            width: 100%;
+            padding: 15px 15px 15px 45px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+            background: #ffffff;
+            position: relative;
+        }
+                 .login-page input[type="text"]:focus, .login-page input[type="password"]:focus {
+             outline: none;
+             border-color: #667eea;
+             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+             transform: translateY(-2px);
+         }
+         .login-page input[type="text"]::placeholder, .login-page input[type="password"]::placeholder {
+             color: #a0aec0;
+             font-style: italic;
+         }
+         .login-page .button-icon {
+             transition: transform 0.3s ease;
+         }
+         .login-page button:hover .button-icon {
+             transform: translateX(3px);
+         }
+                 .login-page button {
+             width: 100%;
+             padding: 16px;
+             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+             color: white;
+             border: none;
+             border-radius: 12px;
+             font-size: 16px;
+             font-weight: 600;
+             cursor: pointer;
+             transition: all 0.3s ease;
+             text-transform: uppercase;
+             letter-spacing: 1px;
+             position: relative;
+             overflow: hidden;
+             display: flex;
+             align-items: center;
+             justify-content: center;
+         }
+        .login-page button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        .login-page button:hover::before {
+            left: 100%;
+        }
+        .login-page button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+        .login-page button:active {
+            transform: translateY(0);
+        }
+        .login-page button:disabled {
+            background: #e2e8f0;
+            color: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .login-page button:disabled::before {
+            display: none;
+        }
+        .login-page .message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            font-weight: 500;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .login-page .success {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            border: none;
+        }
+        .login-page .error {
+            background: linear-gradient(135deg, #f56565, #e53e3e);
+            color: white;
+            border: none;
+        }
+        .login-page .loading {
+            background: linear-gradient(135deg, #4299e1, #3182ce);
+            color: white;
+            border: none;
+        }
+        .login-page .setup-instructions {
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 15px;
+            font-size: 13px;
+            backdrop-filter: blur(5px);
+        }
+        .login-page .setup-instructions h3 {
+            margin-top: 0;
+            color: #4c51bf;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .login-page .setup-instructions code {
+            background: rgba(255, 255, 255, 0.8);
+            padding: 3px 6px;
+            border-radius: 6px;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+        }
+        .login-page .setup-instructions pre {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            overflow-x: auto;
+            font-size: 11px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+        }
+        /* Login button in header */
+        .login-link {
+            display: flex;
+            align-items: center;
+            color: #666;
+            text-decoration: none;
+            margin-right: 20px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+        .login-link:hover {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            color: #667eea;
+            text-decoration: none;
+            border-color: rgba(102, 126, 234, 0.2);
+            transform: translateY(-1px);
+        }
+        .login-link .login-icon {
+            margin-right: 6px;
+            transition: transform 0.3s ease;
+        }
+        .login-link:hover .login-icon {
+            transform: scale(1.1);
+        }
+        .login-link .login-text {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        /* Floating particles animation */
+        .login-page::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 80%, rgba(120, 219, 226, 0.3) 0%, transparent 50%);
+            animation: float 20s ease-in-out infinite;
+            pointer-events: none;
+            z-index: -1;
+        }
+                 @keyframes float {
+             0%, 100% { transform: translateY(0px) rotate(0deg); }
+             33% { transform: translateY(-30px) rotate(2deg); }
+             66% { transform: translateY(-15px) rotate(-1deg); }
+         }
+         /* Loading spinner */
+         .login-page .spinner {
+             display: inline-block;
+             width: 20px;
+             height: 20px;
+             border: 2px solid transparent;
+             border-top: 2px solid currentColor;
+             border-radius: 50%;
+             animation: spin 1s linear infinite;
+             margin-right: 8px;
+         }
+         @keyframes spin {
+             0% { transform: rotate(0deg); }
+             100% { transform: rotate(360deg); }
+         }
+         /* Responsive design */
+         @media (max-width: 576px) {
+             .login-page .login-container {
+                 max-width: 90%;
+                 margin: 0 auto;
+             }
+             .login-page .login-form-container {
+                 padding: 30px 25px;
+                 border-radius: 15px;
+             }
+             .login-page h2 {
+                 font-size: 24px;
+                 margin-bottom: 25px;
+             }
+             .login-page input[type="text"], .login-page input[type="password"] {
+                 padding: 14px 14px 14px 40px;
+                 font-size: 15px;
+             }
+             .login-page .input-icon {
+                 left: 12px;
+             }
+             .login-page button {
+                 padding: 14px;
+                 font-size: 15px;
+             }
+             .login-page .setup-instructions {
+                 padding: 15px;
+                 font-size: 12px;
+             }
+         }
+         /* Focus state improvements */
+         .login-page input[type="text"]:focus + .input-icon,
+         .login-page input[type="password"]:focus + .input-icon {
+             color: #667eea;
+         }
+         /* Enhanced hover effects */
+         .login-page .form-group:hover input {
+             border-color: #cbd5e0;
+         }
+         .login-page .form-group:hover .input-icon {
+             color: #667eea;
+         }
+    </style>
+    {{ if $.is_cymbal_brand }}
+    <link rel='shortcut icon' type='image/x-icon' href='/static/favicon-cymbal.ico' />
+    {{ else }}
+    <link rel='shortcut icon' type='image/x-icon' href='/static/favicon.ico' />
+    {{ end }}
+
     <script
             src="https://www.datadoghq-browser-agent.com/us1/v5/datadog-rum.js"
             type="text/javascript">
@@ -51,14 +389,14 @@
     </script>
     <script>
         window.DD_RUM && window.DD_RUM.init({
-          clientToken: 'pub09b181ae25f7621b86d9c4365f3ddaa7',
-          //lientToken: 'pub5ad88ab6bd75fdea577396f38460bc3d',
-          applicationId: 'c56aa851-8d49-425c-9321-c8eb0f8eb808',
-          //applicationId: '47f3b8d4-99ef-4ef2-b221-1939b17cb800',
+          clientToken: 'pub51977a6380c1afb910488371b92d6241',
+          //clientToken: 'puba7c4b8886c144b0d6d7cf96be425eee7',
+          applicationId: 'c8cdffa6-a8eb-488b-b453-f2c5c7fae2c9',
+          //applicationId: '24dcfc27-d4a5-4b1b-a457-0bca5b9f9390',
           // `site` refers to the Datadog site parameter of your organization
           // see https://docs.datadoghq.com/getting_started/site/
-          //site: 'datadoghq.com',
-          site: 'datadoghq.com',
+          // site: 'ap1.datadoghq.com',
+          site: 'ap1.datadoghq.com',
           service: 'swagstore',
           env: 'ctf',
           // Specify a version number to identify the deployed version of your application in Datadog
@@ -69,13 +407,6 @@
           trackResources: true,
           trackLongTasks: true,
           defaultPrivacyLevel: 'mask-user-input',
-          // すべてのセッションを通常のユーザーセッションとして記録
-          beforeSend: (event) => {
-            event.context = event.context || {};
-            event.context.user_type = 'real_user';
-            event.context.is_synthetic = false;
-            return event;
-          },
           // APMとの自動Correlation設定
           allowedTracingUrls: [
               '/api/login',                           // ログインAPI

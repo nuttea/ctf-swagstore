@@ -99,37 +99,12 @@ document.getElementById('loginForm').addEventListener('submit', async function(e
         
         if (response.ok && result.success) {
             messageDiv.className = 'message success';
+            messageDiv.textContent = 'ログイン成功！リダイレクトしています...';
             
-            // user1の特別なメッセージをチェック
-            if (result.isSpecialUser && username === 'user1') {
-                // 特別なメッセージを表示
-                messageDiv.textContent = result.message;
-                console.log('🎉 SPECIAL USER MESSAGE:', result.message);
-                
-                // 特別なスタイルを適用
-                messageDiv.style.background = 'linear-gradient(135deg, #FFD700, #FFA500)';
-                messageDiv.style.color = '#000';
-                messageDiv.style.fontWeight = 'bold';
-                messageDiv.style.fontSize = '16px';
-                messageDiv.style.padding = '20px';
-                messageDiv.style.borderRadius = '12px';
-                messageDiv.style.boxShadow = '0 4px 20px rgba(255, 215, 0, 0.4)';
-                messageDiv.style.border = '2px solid #FFD700';
-                messageDiv.style.animation = 'pulse 2s infinite';
-                
-                // 長めに表示してからリダイレクト
-                setTimeout(() => {
-                    window.location.href = result.redirectUrl || '/';
-                }, 5000);
-            } else {
-                // 通常のメッセージ
-                messageDiv.textContent = 'ログイン成功！リダイレクトしています...';
-                
-                // 成功時は少し待ってからリダイレクト
-                setTimeout(() => {
-                    window.location.href = result.redirectUrl || '/';
-                }, 1000);
-            }
+            // 成功時は少し待ってからリダイレクト
+            setTimeout(() => {
+                window.location.href = result.redirectUrl || '/';
+            }, 1000);
         } else {
             messageDiv.className = 'message error';
             messageDiv.textContent = result.message || 'ログインに失敗しました。';

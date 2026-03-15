@@ -167,6 +167,42 @@ Find **Protocol Buffers Descriptions** at the [`./pb` directory](./pb).
 | [recommendationservice](./src/recommendationservice) | Python        | Recommends other products based on what's given in the cart.                                                                      |
 | [adservice](./src/adservice)                         | Java          | Provides text ads based on given context words.                                                                                   |
 | [loadgenerator](./src/loadgenerator)                 | Python/Locust | Continuously sends requests imitating realistic user shopping flows to the frontend.                                              |
+| [responseservice-v1](./src/responseservice/responseservice-v1) | Go   | CTF challenge service demonstrating Datadog Continuous Profiler. Runs a CPU-heavy bubble sort (O(n²)) on each request.          |
+| [responseservice-v2](./src/responseservice/responseservice-v2) | Go   | Optimised version of responseservice using stdlib sort (O(n log n)). Used to compare profiling data against v1.                 |
+
+## responseservice — Datadog Continuous Profiler CTF Challenge
+
+`responseservice` is a pair of Go HTTP services (`v1` and `v2`) designed as a **CTF (Capture the Flag) challenge** to demonstrate [Datadog Continuous Profiler](https://docs.datadoghq.com/profiler/).
+
+Both versions listen on port `8080` and respond `"Hello World!"` to every request. On each request they also execute a CPU-intensive computation: they read a binary dataset (`./data/input.txt` containing `0`s and `1`s), sort it, and count the number of `1`s.
+
+### The performance regression to find
+
+| Version | Sort algorithm | Complexity |
+| ------- | -------------- | ---------- |
+| **v1**  | Manual bubble sort (nested loops) | O(n²) |
+| **v2**  | `sort.Ints()` from Go stdlib | O(n log n) |
+
+v1 deliberately uses an inefficient bubble sort, causing high CPU usage that is clearly visible in Datadog Profiler flame graphs. The CTF challenge is to:
+
+1. Deploy both versions to Kubernetes simultaneously.
+2. Use **Datadog Continuous Profiler** to observe elevated CPU in `responseservice` `v1.0.0` vs `v2.0.0`.
+3. Drill into the flame graph to identify `count()` → bubble sort as the root cause.
+
+Both services are instrumented with `dd-trace-go` APM tracing and CPU/Heap profiling, and emit Unified Service Tagging labels (`DD_ENV`, `DD_SERVICE`, `DD_VERSION`) so traces and profiles are automatically correlated in Datadog.
+
+### Building & deploying responseservice
+
+```bash
+# Mac Apple Silicon (arm64)
+skaffold build --default-repo=gcr.io/datadog-ese-sandbox --platform=linux/arm64
+
+# x86 / Intel / AMD64
+skaffold build --default-repo=gcr.io/datadog-ese-sandbox --platform=linux/amd64
+
+# Deploy manifests
+kubectl apply -f kubernetes-manifests/responseservice/
+```
 
 ## Features
 
@@ -188,6 +224,51 @@ Find **Protocol Buffers Descriptions** at the [`./pb` directory](./pb).
   [Locust](https://locust.io/) load generator.
   
   
+## Skaffold Build & Push
+
+Use `skaffold build` to build all container images and push them to your registry. Three flags control the most common options:
+
+| Flag | Description |
+| ---- | ----------- |
+| `--default-repo` | Registry prefix prepended to every image name |
+| `--tag` | Image tag applied to all built images (overrides `tagPolicy` in `skaffold.yaml`) |
+| `--platform` | Target CPU architecture for the built image |
+
+### Mac Apple Silicon (arm64)
+
+```bash
+skaffold build \
+  --default-repo=gcr.io/datadog-ese-sandbox \
+  --tag=latest \
+  --platform=linux/arm64
+```
+
+### x86 / Intel / AMD64
+
+```bash
+skaffold build \
+  --default-repo=gcr.io/datadog-ese-sandbox \
+  --tag=latest \
+  --platform=linux/amd64
+```
+
+### Build a specific image only
+
+```bash
+skaffold build \
+  --default-repo=gcr.io/datadog-ese-sandbox \
+  --tag=latest \
+  --platform=linux/amd64 \
+  --build-image=responseservice-v1
+```
+
+> **Tip:** Authenticate Docker to GCR before pushing:
+> ```bash
+> gcloud auth configure-docker gcr.io
+> ```
+
+---
+
 ## Deploy Swagstore Demo app
 
 Do you have a running K8s cluster? If not either use Docker Desktop or Minikube or Kind or your K8s cluster or your GKE
@@ -228,18 +309,15 @@ Launch a local Kubernetes cluster with one of the following tools:
    automatically as you refactor the code, run `skaffold dev` command.
    
    
-	**change the platform accordingly**
-	
-	**change the default-repo to point to your personal hub account
-	if you want to use your own images or you can use mine**
-	
-	if you are on Mac M1 or M2 or you are on arm use the --platform accordingly
+	**Change the platform and default-repo to match your machine and registry.**
 
-	  `skaffold run --default-repo docker.io/smazzone --platform=linux/arm64`
-	
-	if you are on a PC or an Intel-based Mac or you are on amd use the --platform accordingly
-  
-    `skaffold run --default-repo docker.io/smazzone --platform=linux/amd64`
+	Mac Apple Silicon (M1/M2/M3 — arm64):
+
+	  `skaffold run --default-repo=gcr.io/datadog-ese-sandbox --tag=latest --platform=linux/arm64`
+
+	x86 / Intel Mac / AMD64:
+
+	  `skaffold run --default-repo=gcr.io/datadog-ese-sandbox --tag=latest --platform=linux/amd64`
    
 
 4. Run `kubectl get pods` to verify the Pods are ready and running.

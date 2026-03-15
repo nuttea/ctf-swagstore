@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: responseservice-v2
-          image: ghcr.io/dd-japan/ctf-swagstore/responseservice-v2:latest
+          image: gcr.io/datadog-ese-sandbox/responseservice-v2:latest
           ports:
             - containerPort: 8080
           imagePullPolicy: Always

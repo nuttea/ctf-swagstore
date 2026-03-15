@@ -53,8 +53,8 @@ spec:
               - all
           privileged: false
           # readOnlyRootFilesystem: true
-        #image: ghcr.io/dd-japan/ctf-swagstore/productcatalogservice:latest
-        image: productcatalogservice
+        image: gcr.io/datadog-ese-sandbox/productcatalogservice:latest
+        #image: productcatalogservice
         ports:
         - containerPort: 3550
         env:
@@ -73,25 +73,27 @@ spec:
         - name: DISABLE_STATS
           value: "1"
         - name: DISABLE_TRACING
-          value: "0"
-        - name: DD_TRACE_ENABLED
-          value: "true"
-        - name: DD_TRACE_SQL_ENABLED
-          value: "true"
-        - name: DD_TRACE_SAMPLE_RATE
           value: "1"
-        - name: DD_SERVICE
-          value: "productcatalogservice"
-        - name: DD_VERSION
-          value: "1.0.0"
-        - name: DD_ENV
-          value: "ctf"
-        - name: DD_TRACE_STARTUP_LOGS
-          value: "true"
         #- name: DISABLE_PROFILER
         #  value: "1"
         - name: DD_PROFILING_ENABLED
           value: "true"
+        - name: DD_PROFILING_EXECUTION_TRACE_ENABLED
+          value: "true"
+        - name: DD_LOGS_INJECTION
+          value: "true"
+        - name: DD_TRACE_SAMPLE_RATE
+          value: "1"
+        - name: DD_AGENT_HOST
+          valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+        # readinessProbe:
+        #   exec:
+        #     command: ["/bin/grpc_health_probe", "-addr=:3550"]
+        # livenessProbe:
+        #   exec:
+        #     command: ["/bin/grpc_health_probe", "-addr=:3550"]
         resources:
           requests:
             cpu: 100m

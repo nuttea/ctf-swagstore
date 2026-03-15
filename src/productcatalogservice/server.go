@@ -525,21 +525,3 @@ func run(port string) string {
 
 	return srv.Serve(l).Error()
 }
-
-// 意図的に非効率なクエリを実行（デモンストレーション用）
-func getProductWithInefficiencyDemo(ctx context.Context, productID string) (*pb.Product, error) {
-	// クエリは現在使用されていないため、将来の実装用にコメントアウト
-	/*
-	query := `
-		SELECT id, name, description, picture, price_usd_units, price_usd_nanos, categories
-		FROM products 
-		WHERE UPPER(name) LIKE '%' || UPPER($1) || '%'  -- 非効率：LIKE演算子でフルテーブルスキャン
-		OR description ILIKE '%product%'  -- 非効率：別の条件も追加
-		ORDER BY random()  -- 非効率：ランダムソート
-		LIMIT 100;
-	`
-	*/
-	// 実際は通常のクエリを実行...
-	// TODO: 実装を完了する
-	return nil, nil
-}

@@ -140,48 +140,6 @@ data:
     -- Enable pg_stat_statements extension for Datadog DBM
     CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
     
-    -- ===== Chatbot RAG Setup =====
-    -- Enable pgvector extension for chatbot RAG functionality
-    CREATE EXTENSION IF NOT EXISTS vector;
-    
-    -- Create product embeddings table for RAG
-    CREATE TABLE IF NOT EXISTS product_embeddings (
-        id SERIAL PRIMARY KEY,
-        product_id VARCHAR(50) NOT NULL,
-        product_name VARCHAR(255) NOT NULL,
-        description TEXT,
-        price_usd DECIMAL(10, 2),
-        categories TEXT,
-        picture VARCHAR(500),
-        embedding vector(1024),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(product_id)
-    );
-    
-    -- Create indexes for fast vector search
-    CREATE INDEX IF NOT EXISTS product_embeddings_vector_idx 
-    ON product_embeddings USING hnsw (embedding vector_cosine_ops);
-    
-    CREATE INDEX IF NOT EXISTS product_embeddings_product_id_idx 
-    ON product_embeddings(product_id);
-    
-    -- Create update trigger
-    CREATE OR REPLACE FUNCTION update_updated_at_column()
-    RETURNS TRIGGER AS \$func\$
-    BEGIN
-        NEW.updated_at = CURRENT_TIMESTAMP;
-        RETURN NEW;
-    END;
-    \$func\$ language 'plpgsql';
-    
-    DROP TRIGGER IF EXISTS update_product_embeddings_updated_at ON product_embeddings;
-    CREATE TRIGGER update_product_embeddings_updated_at 
-    BEFORE UPDATE ON product_embeddings 
-    FOR EACH ROW 
-    EXECUTE FUNCTION update_updated_at_column();
-    -- ===== End Chatbot RAG Setup =====
-    
     -- Grant necessary permissions for Datadog DBM on swagstoredb
     GRANT CONNECT ON DATABASE swagstoredb TO datadog;
     
@@ -236,17 +194,18 @@ data:
       ('ctf', 'flag{sql_injection_detected}') ON CONFLICT (username) DO NOTHING;
     
     -- 商品テーブル（productcatalogservice用）
-    CREATE TABLE products (
-        id VARCHAR(50) NOT NULL,  -- PRIMARY KEYを削除してindexなしにする
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        picture VARCHAR(255),
-        price_usd_units BIGINT NOT NULL,
-        price_usd_nanos INT NOT NULL,
-        categories TEXT[]
+    CREATE TABLE IF NOT EXISTS products (
+      id VARCHAR(50) PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      picture VARCHAR(255),
+      price_usd_units INTEGER NOT NULL,
+      price_usd_nanos INTEGER NOT NULL,
+      categories TEXT[],
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     
-    -- 商品データを挿入（既存の9件のみ）
+    -- 商品データを挿入
     INSERT INTO products (id, name, description, picture, price_usd_units, price_usd_nanos, categories) VALUES
       ('0PUK6V6EV0', 'Dog Headphones', 'You feel it the minute you put them on. The soft, plush cushions seal you in.', '/static/img/products/headphones.jpg', 229, 990000000, ARRAY['accessories']),
       ('1YMWWN1N4O', 'Dog Steel Bottle', 'NoLimit - robust stainless steel vacuum flask including sports lid.', '/static/img/products/steel-bottle.jpg', 35, 970000000, ARRAY['accessories']),
@@ -331,7 +290,7 @@ spec:
         fsGroup: 999
       initContainers:
       - name: init-postgres
-        image: pgvector/pgvector:pg15
+        image: postgres:15
         command: ["/bin/bash", "-c"]
         args:
         - |
@@ -348,7 +307,7 @@ spec:
           mountPath: /var/lib/postgresql/data
       containers:
       - name: postgres
-        image: pgvector/pgvector:pg15
+        image: postgres:15
         ports:
         - containerPort: 5432
         securityContext:

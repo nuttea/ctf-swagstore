@@ -52,8 +52,8 @@ spec:
         #       - all
         #   privileged: false
         #   readOnlyRootFilesystem: true
-        #image: ghcr.io/dd-japan/ctf-swagstore/recommendationservice:latest
-        image: recommendationservice
+        image: gcr.io/datadog-ese-sandbox/recommendationservice:latest
+        #image: recommendationservice
         ports:
         - containerPort: 8080
         # readinessProbe:

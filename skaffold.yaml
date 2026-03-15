@@ -44,14 +44,10 @@ build:
     context: src/frontend
   - image: adservice
     context: src/adservice
-  - image: chatbot-embedder
-    context: src/chatbot-embedder
-  - image: chatbot-api
-    context: src/chatbot-api
-  - image: attack-simulator
-    context: src/attack-simulator
-  - image: chatbot-attack-simulator
-    context: src/chatbot-attack-simulator
+  - image: responseservice-v1
+    context: src/responseservice/responseservice-v1
+  - image: responseservice-v2
+    context: src/responseservice/responseservice-v2
   tagPolicy:
     gitCommit: {}
   local:

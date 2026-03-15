@@ -51,8 +51,8 @@ spec:
                 - all
             privileged: false
             # readOnlyRootFilesystem: true
-          #image: ghcr.io/dd-japan/ctf-swagstore/frontend:latest
-          image: frontend
+          image: gcr.io/datadog-ese-sandbox/frontend:latest
+          #image: frontend
           ports:
           - containerPort: 8080
           readinessProbe:

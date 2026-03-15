@@ -173,7 +173,6 @@ func main() {
 
 	// APIルートを追加（既存のルート設定部分に追加）
 	r.HandleFunc("/api/product/{id}", svc.productAPIHandler).Methods(http.MethodGet)
-	r.HandleFunc("/api/chatbot/chat", chatbotProxyHandler).Methods(http.MethodPost)
 
 	var handler http.Handler = r
 	handler = &logHandler{log: log, next: handler} // add logging
@@ -530,40 +529,69 @@ type LoginRequest struct {
 
 // Login API response structure
 type LoginResponse struct {
-    Success       bool   `json:"success"`
-    Message       string `json:"message"`
-    RedirectUrl   string `json:"redirectUrl,omitempty"`
-    IsSpecialUser bool   `json:"isSpecialUser,omitempty"`
+    Success     bool   `json:"success"`
+    Message     string `json:"message"`
+    RedirectUrl string `json:"redirectUrl,omitempty"`
+}
+
+// RUMトレーシング情報を構造体で管理
+type RUMTraceInfo struct {
+    TraceID  string
+    SpanID   string
+    HasTrace bool
+}
+
+// RUMトレーシングヘッダーからトレース情報を抽出
+func extractRUMTraceInfo(r *http.Request) RUMTraceInfo {
+    // Datadog RUM トレーシングヘッダーを取得
+    traceID := r.Header.Get("x-datadog-trace-id")
+    spanID := r.Header.Get("x-datadog-parent-id")
+    
+    return RUMTraceInfo{
+        TraceID:  traceID,
+        SpanID:   spanID,
+        HasTrace: traceID != "" && spanID != "",
+    }
 }
 
 // JSON API Login handler with RUM trace correlation
 func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
-	// RUMとAPMの相関はallowedTracingUrlsにより自動化されるため、手動の親子リンクは行わない
-	span, ctx := tracer.StartSpanFromContext(r.Context(), "login.api.handler")
-	defer span.Finish()
-
-	// リクエストヘッダーを確認
-	w.Header().Set("Content-Type", "application/json")
-
-	// スパンにタグを追加
-	span.SetTag("http.method", r.Method)
-	span.SetTag("http.url", r.URL.Path)
-	span.SetTag("request.type", "ajax")
-
-	// リクエストボディを解析
-	var loginReq LoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
-		span.SetTag("error", true)
-		span.SetTag("error.msg", "Invalid JSON request")
-
-		response := LoginResponse{
-			Success: false,
-			Message: "無効なリクエスト形式です",
-		}
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(response)
-		return
-	}
+    // RUMトレーシング情報を取得
+    rumInfo := extractRUMTraceInfo(r)
+    
+    // スパンを作成
+    span, ctx := tracer.StartSpanFromContext(r.Context(), "login.api.handler")
+    defer span.Finish()
+    
+    // リクエストヘッダーを確認
+    w.Header().Set("Content-Type", "application/json")
+    
+    // スパンにタグを追加
+    span.SetTag("http.method", r.Method)
+    span.SetTag("http.url", r.URL.Path)
+    span.SetTag("request.type", "ajax")
+    span.SetTag("rum.correlation", rumInfo.HasTrace)
+    
+    // RUMからのトレーシング情報をタグに追加
+    if rumInfo.HasTrace {
+        span.SetTag("rum.trace_id", rumInfo.TraceID)
+        span.SetTag("rum.span_id", rumInfo.SpanID)
+    }
+    
+    // リクエストボディを解析
+    var loginReq LoginRequest
+    if err := json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
+        span.SetTag("error", true)
+        span.SetTag("error.msg", "Invalid JSON request")
+        
+        response := LoginResponse{
+            Success: false,
+            Message: "無効なリクエスト形式です",
+        }
+        w.WriteHeader(http.StatusBadRequest)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
     
     // ユーザー名をタグに追加
     span.SetTag("user.username", loginReq.Username)
@@ -852,28 +880,11 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
     span.SetTag("auth.result", "success")
     span.SetTag("http.status_code", "200")
 
-    // user1の特別なメッセージ処理
-    var message string
-    var isSpecialUser bool
-    if loginReq.Username == "user1" {
-        message = "Congratulations! You're the 1,000,000th user! You've won a prize. The keyword is Bits. Please notify the admin."
-        isSpecialUser = true
-        
-        // ログに記録
-        log.Printf("🎉 SPECIAL USER LOGIN: %s - %s", loginReq.Username, message)
-        span.SetTag("user.special", true)
-        span.SetTag("user.message", message)
-    } else {
-        message = "ログインに成功しました"
-        isSpecialUser = false
-    }
-
     // 成功レスポンスを返す
     response := LoginResponse{
         Success:     true,
-        Message:     message,
+        Message:     "ログインに成功しました",
         RedirectUrl: "/",
-        IsSpecialUser: isSpecialUser,
     }
     w.WriteHeader(http.StatusOK)
     json.NewEncoder(w).Encode(response)

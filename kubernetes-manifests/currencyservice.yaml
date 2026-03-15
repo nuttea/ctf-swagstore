@@ -52,8 +52,8 @@ spec:
               - all
           privileged: false
           # readOnlyRootFilesystem: true
-        #image: ghcr.io/dd-japan/ctf-swagstore/currencyservice:latest
-        image: currencyservice
+        image: gcr.io/datadog-ese-sandbox/currencyservice:latest
+        #image: currencyservice
         ports:
         - name: grpc
           containerPort: 7000

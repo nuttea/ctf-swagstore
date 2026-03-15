@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mobileservice-config
+  labels:
+    app: mobileservice
+data:
+  ENV: "ctf"
+  SERVICE_NAME: "mobileservice"
+  SERVICE_VERSION: "v3.1.4"

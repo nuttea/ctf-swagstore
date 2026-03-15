@@ -50,8 +50,8 @@ spec:
               - all
           privileged: false
           # readOnlyRootFilesystem: true
-        #image: ghcr.io/dd-japan/ctf-swagstore/shippingservice:latest
-        image: shippingservice
+        image: gcr.io/datadog-ese-sandbox/shippingservice:latest
+        #image: shippingservice
         ports:
         - containerPort: 50051
         env:
