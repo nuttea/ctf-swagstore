@@ -195,10 +195,10 @@ Both services are instrumented with `dd-trace-go` APM tracing and CPU/Heap profi
 
 ```bash
 # Mac Apple Silicon (arm64)
-skaffold build --default-repo=gcr.io/datadog-ese-sandbox --tag=latest --platform=linux/arm64
+skaffold build --default-repo=gcr.io/datadog-ese-sandbox --platform=linux/arm64
 
 # x86 / Intel / AMD64
-skaffold build --default-repo=gcr.io/datadog-ese-sandbox --tag=latest --platform=linux/amd64
+skaffold build --default-repo=gcr.io/datadog-ese-sandbox --platform=linux/amd64
 
 # Deploy manifests
 kubectl apply -f kubernetes-manifests/responseservice/
