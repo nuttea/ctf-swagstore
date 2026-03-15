@@ -67,7 +67,7 @@ spec:
               - all
           privileged: false
           readOnlyRootFilesystem: true
-        image: gcr.io/datadog-ese-sandbox/loadgenerator
+        image: gcr.io/datadog-ese-sandbox/loadgenerator:latest
         env:
         - name: FRONTEND_ADDR
           value: "frontend:80"

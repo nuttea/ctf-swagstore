@@ -44,6 +44,10 @@ build:
     context: src/frontend
   - image: adservice
     context: src/adservice
+  - image: responseservice-v1
+    context: src/responseservice/responseservice-v1
+  - image: responseservice-v2
+    context: src/responseservice/responseservice-v2
   tagPolicy:
     gitCommit: {}
   local:
