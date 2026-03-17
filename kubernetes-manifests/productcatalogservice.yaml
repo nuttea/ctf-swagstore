@@ -57,11 +57,23 @@ spec:
               - all
           privileged: false
           # readOnlyRootFilesystem: true
-        image: gcr.io/datadog-ese-sandbox/productcatalogservice:latest
-        #image: productcatalogservice
+        #image: gcr.io/datadog-ese-sandbox/productcatalogservice:latest
+        image: productcatalogservice
         ports:
         - containerPort: 3550
         env:
+        - name: DD_ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/env']
+        - name: DD_SERVICE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/service']
+        - name: DD_VERSION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/version']
         - name: PORT
           value: "3550"
         - name: POSTGRES_HOST

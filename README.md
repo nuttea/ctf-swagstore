@@ -318,7 +318,22 @@ Launch a local Kubernetes cluster with one of the following tools:
 	x86 / Intel Mac / AMD64:
 
 	  `skaffold run --default-repo=gcr.io/datadog-ese-sandbox --tag=latest --platform=linux/amd64`
-   
+
+   > **Note:** The above commands deploy the main app only. The `loadgenerator` is a separate Skaffold config and must be deployed explicitly (it starts with `replicas: 0` — scale up when ready):
+   >
+   > ```bash
+   > skaffold run -m loadgenerator --default-repo gcr.io/datadog-ese-sandbox --platform=linux/amd64
+   > ```
+   >
+   > Then scale up to start generating traffic:
+   > ```bash
+   > kubectl scale deployment loadgenerator --replicas=1
+   > ```
+   >
+   > To stop traffic generation without deleting the deployment:
+   > ```bash
+   > kubectl scale deployment loadgenerator --replicas=0
+   > ```
 
 4. Run `kubectl get pods` to verify the Pods are ready and running.
 

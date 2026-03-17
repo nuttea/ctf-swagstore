@@ -50,11 +50,23 @@ spec:
               - all
           privileged: false
           # readOnlyRootFilesystem: true
-        image: gcr.io/datadog-ese-sandbox/shippingservice:latest
-        #image: shippingservice
+        #image: gcr.io/datadog-ese-sandbox/shippingservice:latest
+        image: shippingservice
         ports:
         - containerPort: 50051
         env:
+        - name: DD_ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/env']
+        - name: DD_SERVICE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/service']
+        - name: DD_VERSION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/version']
         - name: PORT
           value: "50051"
         - name: DISABLE_STATS
@@ -69,6 +81,10 @@ spec:
           value: "true"
         - name: DD_TRACE_SAMPLE_RATE
           value: "1"
+        - name: DD_AGENT_HOST
+          valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
         # readinessProbe:
         #   periodSeconds: 5
         #   exec:

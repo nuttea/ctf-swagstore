@@ -20,6 +20,7 @@ from locust import HttpUser, TaskSet, between
 products = [
     '0PUK6V6EV0',
     '1YMWWN1N4O',
+    '1YMWWN1N4O',
     '2ZYFJ3GM2N',
     '66VCHSJNUP',
     '6E92ZMYYFZ',
@@ -49,10 +50,9 @@ def addToCart(l):
         'product_id': product,
         'quantity': random.choice([1,2,3,4,5,10])})
 
-def checkout(l):
-    addToCart(l)
-    l.client.post("/cart/checkout", {
-        'email': 'someone@example.com',
+users = [
+    {
+        'email': 'alice.johnson@example.com',
         'street_address': '1600 Amphitheatre Parkway',
         'zip_code': '94043',
         'city': 'Mountain View',
@@ -62,7 +62,73 @@ def checkout(l):
         'credit_card_expiration_month': '1',
         'credit_card_expiration_year': '2039',
         'credit_card_cvv': '672',
-    })
+    },
+    {
+        'email': 'bob.smith@example.com',
+        'street_address': '1 Infinite Loop',
+        'zip_code': '95014',
+        'city': 'Cupertino',
+        'state': 'CA',
+        'country': 'United States',
+        'credit_card_number': '4111-1111-1111-1111',
+        'credit_card_expiration_month': '6',
+        'credit_card_expiration_year': '2028',
+        'credit_card_cvv': '737',
+    },
+    {
+        'email': 'carol.white@example.com',
+        'street_address': '350 Fifth Avenue',
+        'zip_code': '10118',
+        'city': 'New York',
+        'state': 'NY',
+        'country': 'United States',
+        'credit_card_number': '4539-1488-0343-6467',
+        'credit_card_expiration_month': '9',
+        'credit_card_expiration_year': '2027',
+        'credit_card_cvv': '284',
+    },
+    {
+        'email': 'david.lee@example.com',
+        'street_address': '233 S Wacker Dr',
+        'zip_code': '60606',
+        'city': 'Chicago',
+        'state': 'IL',
+        'country': 'United States',
+        'credit_card_number': '4916-3383-0477-2894',
+        'credit_card_expiration_month': '3',
+        'credit_card_expiration_year': '2030',
+        'credit_card_cvv': '519',
+    },
+    {
+        'email': 'alice.johnson@example.com',
+        'street_address': '1301 Fannin St',
+        'zip_code': '77002',
+        'city': 'Houston',
+        'state': 'TX',
+        'country': 'United States',
+        'credit_card_number': '4556-7375-8689-9855',
+        'credit_card_expiration_month': '11',
+        'credit_card_expiration_year': '2031',
+        'credit_card_cvv': '963',
+    },
+    {
+        'email': 'eve.martinez@example.com',
+        'street_address': '500 W Madison St',
+        'zip_code': '60661',
+        'city': 'Chicago',
+        'state': 'IL',
+        'country': 'United States',
+        'credit_card_number': '4532-0151-1283-0366',
+        'credit_card_expiration_month': '8',
+        'credit_card_expiration_year': '2025',  # triggers SpecificYearCreditCardError (#15-17)
+        'credit_card_cvv': '412',
+    },
+]
+
+def checkout(l):
+    addToCart(l)
+    user = random.choice(users)
+    l.client.post("/cart/checkout", user)
 
 class UserBehavior(TaskSet):
 

@@ -52,8 +52,8 @@ spec:
         #       - all
         #   privileged: false
         #   readOnlyRootFilesystem: true
-        image: gcr.io/datadog-ese-sandbox/recommendationservice:latest
-        #image: recommendationservice
+        #image: gcr.io/datadog-ese-sandbox/recommendationservice:latest
+        image: recommendationservice
         ports:
         - containerPort: 8080
         # readinessProbe:
@@ -65,6 +65,18 @@ spec:
         #   exec:
         #     command: ["/bin/grpc_health_probe", "-addr=:8080"]
         env:
+        - name: DD_ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/env']
+        - name: DD_SERVICE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/service']
+        - name: DD_VERSION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/version']
         - name: PORT
           value: "8080"
         - name: PRODUCT_CATALOG_SERVICE_ADDR

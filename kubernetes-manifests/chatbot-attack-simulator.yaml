@@ -34,11 +34,17 @@ spec:
         - name: CYCLE_INTERVAL
           value: "2100"  # 1サイクル = 7攻撃 × 5分 = 35分
         - name: DD_ENV
-          value: "swagstore"
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/env']
         - name: DD_SERVICE
-          value: "chatbot-attack-simulator"
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/service']
         - name: DD_VERSION
-          value: "1.0.0"
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/version']
         - name: DD_LOGS_INJECTION
           value: "true"
         resources:

@@ -99,13 +99,25 @@ spec:
               - all
           privileged: false
         #   readOnlyRootFilesystem: true
-        image: gcr.io/datadog-ese-sandbox/adservice:latest
-        #image: adservice
+        #image: gcr.io/datadog-ese-sandbox/adservice:latest
+        image: adservice
         ports:
         - containerPort: 9555
         - name: jmx-metrics
           containerPort: 8081
         env:
+        - name: DD_ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/env']
+        - name: DD_SERVICE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/service']
+        - name: DD_VERSION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/version']
         - name: PORT
           value: "9555"
         - name: DISABLE_STATS
@@ -164,7 +176,7 @@ spec:
             memory: 512Mi
           limits:
             cpu: 300m
-            memory: 300Mi
+            memory: 512Mi
         #volumeMounts:
         #  - name: jmx-config-map
         #    mountPath: /etc/datadog-agent/conf.d/jmx.d

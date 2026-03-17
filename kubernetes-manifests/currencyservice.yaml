@@ -52,12 +52,24 @@ spec:
               - all
           privileged: false
           # readOnlyRootFilesystem: true
-        image: gcr.io/datadog-ese-sandbox/currencyservice:latest
-        #image: currencyservice
+        #image: gcr.io/datadog-ese-sandbox/currencyservice:latest
+        image: currencyservice
         ports:
         - name: grpc
           containerPort: 7000
         env:
+        - name: DD_ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/env']
+        - name: DD_SERVICE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/service']
+        - name: DD_VERSION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/version']
         - name: PORT
           value: "7000"
         - name: DISABLE_PROFILER

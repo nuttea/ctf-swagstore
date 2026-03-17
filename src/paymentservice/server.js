@@ -16,7 +16,7 @@ const path = require('path');
 const grpc = require('@grpc/grpc-js');
 const pino = require('pino');
 const protoLoader = require('@grpc/proto-loader');
-const tracer = require('dd-trace').init();  // dd-trace をインポート
+const tracer = require('dd-trace');  // already initialized in index.js
 
 const charge = require('./charge');
 

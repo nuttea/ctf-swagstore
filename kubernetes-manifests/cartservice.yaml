@@ -52,11 +52,23 @@ spec:
               - all
           privileged: false
           # readOnlyRootFilesystem: true
-        image: gcr.io/datadog-ese-sandbox/cartservice:latest
-        #image: cartservice
+        #image: gcr.io/datadog-ese-sandbox/cartservice:latest
+        image: cartservice
         ports:
         - containerPort: 7070
         env:
+        - name: DD_ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/env']
+        - name: DD_SERVICE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/service']
+        - name: DD_VERSION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/version']
         - name: REDIS_ADDR
           value: "redis-cart:6379"
         - name: DD_LOGS_INJECTION

@@ -16,6 +16,7 @@
 
 'use strict';
 
+require('dd-trace').init();
 
 if(process.env.DISABLE_PROFILER) {
   console.log("Profiler disabled.")
