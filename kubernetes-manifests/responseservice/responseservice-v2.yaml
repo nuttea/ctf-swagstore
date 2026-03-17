@@ -6,7 +6,7 @@ metadata:
     app: responseservice-v2
     tags.datadoghq.com/env: "ctf"
     tags.datadoghq.com/service: "responseservice"
-    tags.datadoghq.com/version: "v2.0.0"       
+    tags.datadoghq.com/version: "v2.0.1"       
 spec:
   replicas: 1
   selector:
@@ -19,7 +19,7 @@ spec:
         admission.datadoghq.com/enabled: "true"     
         tags.datadoghq.com/env: "ctf"
         tags.datadoghq.com/service: "responseservice"
-        tags.datadoghq.com/version: "v2.0.0"
+        tags.datadoghq.com/version: "v2.0.1"
     spec:
       containers:
         - name: responseservice-v2

@@ -223,7 +223,7 @@ func loginPage(w http.ResponseWriter, r *http.Request) {
         "request_id":        r.Context().Value(ctxKeyRequestID{}),
         "user_currency":     currentCurrency(r),
         "show_currency":     true,
-        "currencies":        []string{"USD", "EUR", "CAD", "JPY", "GBP", "TRY"},
+        "currencies":        []string{"EUR", "USD", "JPY", "GBP", "TRY", "CAD"},
         "cart_size":         0, // ログインページでは仮に0
         "banner_color":      os.Getenv("BANNER_COLOR"),
         "platform_css":      plat.css,

@@ -52,7 +52,7 @@ def addToCart(l):
 
 users = [
     {
-        'email': 'alice.johnson@example.com',
+        'email': 'pokemonmaster@example.com',
         'street_address': '1600 Amphitheatre Parkway',
         'zip_code': '94043',
         'city': 'Mountain View',
@@ -100,7 +100,7 @@ users = [
         'credit_card_cvv': '519',
     },
     {
-        'email': 'alice.johnson@example.com',
+        'email': 'pokemonmaster@example.com',
         'street_address': '1301 Fannin St',
         'zip_code': '77002',
         'city': 'Houston',

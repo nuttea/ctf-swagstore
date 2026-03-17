@@ -35,9 +35,9 @@ This environment is the **Thailand cluster** (`ctf-th-master-cluster`, `asia-sou
 | 6 | Service with most logs (past 1h) | frontend | **frontend** (21,801 logs — top app service) | ✅ Confirmed |
 | 7 | Service with most INFO logs (past 1h) | currencyservice | **productcatalogservice** (17,508 info logs) | ⚠️ Different |
 | 8 | Most common `frontend` log pattern | `request *` | **`request *`** (3,300 occurrences) | ✅ Confirmed |
-| 9 | Most accessed product ID (`productcatalogservice`) | OLJCESPC7Z | **1YMWWN1N4O** (Dog Steel Bottle, 2,278 accesses) | ⚠️ Different |
+| 9 | Most accessed product ID (`productcatalogservice`) | OLJCESPC7Z | **1YMWWN1N4O** (Dog Steel Bottle) *(equal prob random — may fluctuate)* | ⚠️ Different |
 | 10 | String that replaces masked credit card in `paymentservice` | `[credit_card_number]` | **`[credit_card_number]`** *(SDS masks in UI; raw API shows actual number)* | ✅ Confirmed |
-| 11 | Email of customer with most purchases | pokemonmaster@example.com | **someone@example.com** *(all orders use this placeholder in TH env)* | ⚠️ Different |
+| 11 | Email of customer with most purchases | pokemonmaster@example.com | **pokemonmaster@example.com** *(fixed: locustfile now uses this email for 2/6 users)* | ✅ Fixed |
 
 ### Notes — Product Access Counts (Challenge #9)
 All counts over 1h window:
@@ -154,8 +154,8 @@ RUM events API returned a 400 error for all queries (`No valid indexes specified
 > - #34 Other browser: `Edge`
 > - #35 Frustration signal: `Dead Click`
 > - #36 Most frequent frontend error: `TypeError`
-> - #37 Most clicked element on `/product/?`: `$ EUR USD JPY GBP TRY CAD`
-> - #38 Unclicked button: `Please Click Me!`
+> - #37 Most clicked element on `/product/?`: `$ EUR USD JPY GBP TRY CAD` — **✅ Fixed** (currencies list reordered to `["EUR","USD","JPY","GBP","TRY","CAD"]` so when USD is current currency the selector reads `$ EUR USD JPY GBP TRY CAD`)
+> - #38 Unclicked button: `Please Click Me!` — button exists in `src/frontend/templates/footer.html`
 
 ---
 
@@ -164,7 +164,7 @@ RUM events API returned a 400 error for all queries (`No valid indexes specified
 | ID | Challenge | Expected (Sheet) | Live Data Answer | Status |
 |----|-----------|-----------------|-----------------|--------|
 | 39 | `responseservice` endpoint with most traces | GET / | **GET /** (1,174 spans in 1h) | ✅ Confirmed |
-| 40 | `responseservice` version with ~500µs latency | v2.0.1 | **v2.0.0** (~600µs, matches "around 500µs") | ⚠️ Different |
+| 40 | `responseservice` version with ~500µs latency | v2.0.1 | **v2.0.1** *(fixed: manifest version tag updated from v2.0.0 → v2.0.1)* | ✅ Fixed |
 | 41 | Function consuming most CPU in v1.0.0 | count | *(requires Profiles UI)* | — |
 | 42 | Function consuming most CPU in v2.0.0 | read | *(requires Profiles UI)* | — |
 | 43 | CPU reduction between versions (1 decimal) | 1.2s | *(requires Profiles Comparison UI)* | — |
@@ -174,7 +174,7 @@ RUM events API returned a 400 error for all queries (`No valid indexes specified
 | Version | Endpoint | Typical Duration | Notes |
 |---------|----------|-----------------|-------|
 | v1.0.0 | GET / | ~91ms (~100ms range) | CPU-bound (`count` function) |
-| **v2.0.0** | **GET /** | **~600µs (~500µs range)** | Optimized (`read` function) |
+| **v2.0.1** | **GET /** | **~600µs (~500µs range)** | Optimized (`read` function) — tag updated ✅ |
 
 ---
 
@@ -249,6 +249,49 @@ These require creating dashboard widgets in the UI.
 | Project tag | datadog-sandbox | datadog-ese-sandbox |
 | Top INFO log service | currencyservice | productcatalogservice |
 | Most accessed product | OLJCESPC7Z (Dog Notebook) | 1YMWWN1N4O (Dog Steel Bottle) |
-| Checkout error root cause | paymentservice | cartservice (connection refused) |
-| Top customer email | pokemonmaster@example.com | someone@example.com |
-| Fast responseservice version | v2.0.1 | v2.0.0 |
+| Checkout error root cause | paymentservice | paymentservice ✅ (cartservice fixed, dd-trace init fixed) |
+| Top customer email | pokemonmaster@example.com | pokemonmaster@example.com ✅ (locustfile fixed) |
+| Fast responseservice version | v2.0.1 | v2.0.1 ✅ (manifest tag fixed) |
+
+---
+
+## 📋 Part 6 — Datadog UI Implementation Suggestions
+
+These challenges **cannot be verified or fixed via code**. They require direct Datadog UI access.
+
+### Infrastructure (#4) — Integration with issue
+- **How to check:** Datadog UI → Infrastructure → Hosts → click a node → check "Integrations" column for warning/error icons
+- **Expected answer:** `redisdb` — check if the Redis integration on the host shows a connectivity or config issue
+
+### APM — SLO (#22–26)
+- **How to verify #22–24:** Datadog UI → Service Level Objectives → find `frontend` SLO, check target % (99.9%), type (Metric), and bad events metric name (`frontend.metrics.checkout.error`)
+- **How to verify #25:** SLO Monitor definition shows log query: `service:frontend env:ctf status:error "failed to charge card"`
+- **How to verify #26:** Run the log query above, open a log entry, copy the full `message` field
+  - After our dd-trace fix the message should be: `failed to complete the order: rpc error: code = Internal desc = failed to charge card: could not charge the card: rpc error: code = Unknown desc = Credit cards with an expiration year of 2025 are not accepted. The flag is "bits"`
+  - The `"bits"` flag is now embedded in the message itself — update expected answer if needed
+
+### APM Profiler (#41–43)
+- **How to verify #41:** Datadog UI → APM → Profiles → filter `service:responseservice version:v1.0.0` → CPU flamegraph → top function is `count`
+- **How to verify #42:** Same but `version:v2.0.1` → top function is `read`
+- **How to verify #43:** Use Profile Comparison between v1.0.0 and v2.0.1 → CPU difference should be ~1.2s
+
+### Security (#44–46, #54, #56–59)
+- **#44–46 (CVE):** Datadog UI → Software Catalog → select the Python-language service (likely `chatbot-api`) → Security tab → look for HIGH severity CVE `CVE-2024-6345` with original score `7.5`
+- **#54 (EC2):** Datadog UI → Cloud Security → Posture Management or Infrastructure → filter for EC2 with elevated privileges tag
+- **#56 (attack endpoint):** App & API Protection → Signals → top attacked endpoint is `POST /api/login`
+- **#57 (business logic):** App & API Protection → Business Logic → recommended custom signal: `users.login.success`
+- **#58 (tool):** In attack signals, check `User-Agent` or tool identifier → `Zgrab`
+- **#59 (DB query service during attack):** Trace the attack signal through APM → service executing DB query is `cartservice-redis`
+
+### DBM (#60–62)
+- **#60 (login query):** Datadog UI → Database Monitoring → Query Samples → filter `host:postgres db:swagstoredb` → look for `SELECT username, password FROM public.users WHERE (username = ?) ORDER BY username LIMIT ?`
+  - This matches the SQL in `src/frontend/main.go` loginHandler (vulnerable string format query)
+- **#61 (execution plan):** Click on the query → Execution Plan → the highest-cost node is `Index Scan`
+- **#62 (index name):** Same execution plan detail → index name: `users_username_key`
+
+### Troubleshooting Login (#63–66)
+- **#63 (longest RUM event):** RUM → Session Explorer → find a login session → Timeline → longest event is `click on Logイン on page /login`
+- **#64 (endpoint called):** Same session timeline → click triggers `POST /api/login`
+- **#65 (slow DB query):** DBM correlated from RUM session → most time-consuming: `LOCK TABLE public.users IN EXCLUSIVE MODE`
+  - This is implemented in `src/frontend/main.go` loginHandler (line ~344) and loginAPIHandler (line ~698)
+- **#66 (wait event group):** DBM query plan → wait event: `Lock` (the SELECT is blocked by the EXCLUSIVE lock)
