@@ -66,12 +66,12 @@
 </main>
 
 <script>
-// 商品IDを取得（URLから）
+// Get product ID from the server-rendered template
 const productId = '{{$.product.Item.Id}}';
 
-// ページロード時に商品データをFetchでリクエスト（RUMとAPMのトレーシング目的）
+// On page load, fetch product data via /api/product/ to generate an APM-correlated RUM resource span
 document.addEventListener('DOMContentLoaded', function() {
-  // Datadog RUMでページビューアクションを記録
+  // Record product page view as a RUM action
   if (window.DD_RUM) {
     DD_RUM.addAction('product_page_view', {
       product_id: productId,
@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // RUMのトレースIDを取得
+  // Read RUM trace context to propagate into the Fetch request headers
   const traceHeaders = {};
   if (window.DD_RUM && DD_RUM.getInternalContext) {
     const context = DD_RUM.getInternalContext();
@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // 商品データをFetchで取得（トレーシング目的、データは既に表示済み）
+  // Fetch product data for APM-RUM trace correlation (data is already rendered server-side)
   fetch(`/api/product/${productId}`, {
     method: 'GET',
     headers: {
@@ -104,7 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
     return response.json();
   })
   .then(data => {
-    // Datadog RUMで成功を記録
+    // Record successful product data load as a RUM action
     if (window.DD_RUM) {
       DD_RUM.addAction('product_data_loaded', {
         product_id: productId,
@@ -116,7 +116,7 @@ document.addEventListener('DOMContentLoaded', function() {
   .catch(error => {
     console.error('Failed to load product for tracing:', error);
     
-    // Datadog RUMでエラーを記録
+    // Record product load failure as a RUM error
     if (window.DD_RUM) {
       DD_RUM.addError(error, {
         product_id: productId,
@@ -126,9 +126,9 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
-// カートに追加時もFetchでRUMとAPMを連携
+// Record add-to-cart as a RUM action before form submission
 function addToCartWithRUM(event, productId) {
-  // Datadog RUMでアクションを開始
+  // Start RUM action for add-to-cart to correlate with APM cart span
   if (window.DD_RUM) {
     const quantity = document.getElementById('quantity').value;
     DD_RUM.addAction('add_to_cart_attempt', {
@@ -137,7 +137,7 @@ function addToCartWithRUM(event, productId) {
     });
   }
 
-  // 通常のフォーム送信を継続（preventDefault しない）
+  // Allow normal form submission to proceed (no preventDefault)
   return true;
 }
 </script>

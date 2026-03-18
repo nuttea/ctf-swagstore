@@ -1,7 +1,7 @@
 {{define "chatbot"}}
 <!-- Chatbot Widget -->
 <div id="chatbot-widget">
-    <button id="chatbot-toggle" class="chatbot-toggle" aria-label="チャットを開く">
+    <button id="chatbot-toggle" class="chatbot-toggle" aria-label="Open chat">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 2C6.48 2 2 6.48 2 12C2 13.89 2.53 15.64 3.44 17.11L2 22L6.89 20.56C8.36 21.47 10.11 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C10.37 20 8.84 19.54 7.53 18.73L7.15 18.5L4.43 19.29L5.23 16.61L4.98 16.21C4.14 14.86 3.67 13.29 3.67 11.67C3.67 7.39 7.22 3.83 11.5 3.83C15.78 3.83 19.33 7.39 19.33 11.67C19.33 15.95 15.78 19.5 11.5 19.5L12 20Z" fill="white"/>
             <path d="M8 11H10V13H8V11Z" fill="white"/>
@@ -16,9 +16,9 @@
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                     <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="white"/>
                 </svg>
-                Swagstore AI サポート
+                Swagstore AI Support
             </div>
-            <button id="chatbot-close" class="chatbot-close" aria-label="閉じる">
+            <button id="chatbot-close" class="chatbot-close" aria-label="Close">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                     <path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z" fill="white"/>
                 </svg>
@@ -29,8 +29,8 @@
             <div class="chatbot-message bot-message">
                 <div class="message-avatar">🤖</div>
                 <div class="message-content">
-                    <p>こんにちは！Swagstoreへようこそ👋</p>
-                    <p>商品についてお気軽にご質問ください。AIがお手伝いいたします！</p>
+                    <p>Hi! Welcome to Swagstore 👋</p>
+                    <p>Feel free to ask me anything about our products. I'm here to help!</p>
                 </div>
             </div>
         </div>
@@ -40,10 +40,10 @@
                 type="text" 
                 id="chatbot-input" 
                 class="chatbot-input" 
-                placeholder="メッセージを入力..."
+                placeholder="Type a message..."
                 autocomplete="off"
             />
-            <button id="chatbot-send" class="chatbot-send" aria-label="送信">
+            <button id="chatbot-send" class="chatbot-send" aria-label="Send">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                     <path d="M2.01 21L23 12L2.01 3L2 10L17 12L2 14L2.01 21Z" fill="white"/>
                 </svg>
@@ -332,7 +332,7 @@
         chatWindow.style.display = isOpen ? 'flex' : 'none';
         if (isOpen) {
             input.focus();
-            // Datadog RUM: チャットボット開いたイベント
+            // Datadog RUM: track chatbot opened action
             window.DD_RUM && window.DD_RUM.addAction('chatbot_opened');
         }
     });
@@ -340,7 +340,7 @@
     closeBtn.addEventListener('click', () => {
         isOpen = false;
         chatWindow.style.display = 'none';
-        // Datadog RUM: チャットボット閉じたイベント
+        // Datadog RUM: track chatbot closed action
         window.DD_RUM && window.DD_RUM.addAction('chatbot_closed');
     });
     
@@ -357,7 +357,7 @@
         // Show typing indicator
         const typingId = showTypingIndicator();
         
-        // Datadog RUM: メッセージ送信イベント
+        // Datadog RUM: track message sent action
         window.DD_RUM && window.DD_RUM.addAction('chatbot_message_sent', {
             message_length: message.length
         });
@@ -391,24 +391,24 @@
                 // Add bot response
                 addMessage(data.message, 'bot', data.products);
                 
-                // Datadog RUM: 応答受信イベント
+                // Datadog RUM: track response received action
                 window.DD_RUM && window.DD_RUM.addAction('chatbot_response_received', {
                     response_length: data.message.length,
                     products_count: data.products ? data.products.length : 0,
                     model: data.metadata?.model
                 });
             } else {
-                addMessage('申し訳ございません。エラーが発生しました。', 'bot');
+                addMessage('Sorry, an error occurred. Please try again.', 'bot');
                 
-                // Datadog RUM: エラーイベント
+                // Datadog RUM: track API error
                 window.DD_RUM && window.DD_RUM.addError(new Error('Chatbot API error: ' + data.error));
             }
         } catch (error) {
             removeTypingIndicator(typingId);
-            addMessage('申し訳ございません。接続エラーが発生しました。', 'bot');
+            addMessage('Sorry, a connection error occurred. Please try again.', 'bot');
             console.error('Chatbot error:', error);
             
-            // Datadog RUM: エラーイベント
+            // Datadog RUM: track connection error
             window.DD_RUM && window.DD_RUM.addError(error);
         } finally {
             sendBtn.disabled = false;
@@ -447,7 +447,7 @@
                     <div class="product-card-title">${product.product_name}</div>
                     <div class="product-card-price">$${parseFloat(product.price_usd).toFixed(2)}</div>
                     <div style="font-size: 12px; color: #666; margin-top: 4px;">
-                        関連度: ${(product.similarity * 100).toFixed(0)}%
+                        Relevance: ${(product.similarity * 100).toFixed(0)}%
                     </div>
                 `;
                 content.appendChild(card);
