@@ -36,12 +36,9 @@ IMAGES=(
   loadgenerator
 )
 
-# ── Compute tag — must match Skaffold's AbbreviatedTags variant ───────────────
+# ── Compute tag — must match Skaffold's AbbrevCommitSha variant ───────────────
+# AbbrevCommitSha always produces a plain <7-char-sha> with NO -dirty suffix.
 SHORT_SHA=$(git rev-parse --short HEAD)
-# Replicate Skaffold's -dirty suffix (ignoreChanges defaults to false)
-if ! git diff --quiet HEAD 2>/dev/null; then
-  SHORT_SHA="${SHORT_SHA}-dirty"
-fi
 FULL_SHA=$(git rev-parse HEAD)
 
 echo "▶ Git SHA: ${SHORT_SHA} (full: ${FULL_SHA})"
