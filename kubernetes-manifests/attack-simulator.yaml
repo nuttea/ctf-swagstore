@@ -10,7 +10,7 @@ metadata:
     tags.datadoghq.com/service: "attack-simulator"
     tags.datadoghq.com/version: "1.0.0"
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: attack-simulator

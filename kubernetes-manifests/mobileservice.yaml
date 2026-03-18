@@ -10,7 +10,7 @@ metadata:
   annotations:
     deployTimestamp: "2025-04-19T12:00:00Z"
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: mobileservice
