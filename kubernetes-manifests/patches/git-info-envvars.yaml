@@ -1,9 +1,7 @@
-# JSON 6902 patch — appends DD_GIT_COMMIT_SHA and DD_GIT_REPOSITORY_URL to the
-# first container of every targeted Deployment.
-# Values are read from the "git-info" ConfigMap that the Skaffold pre-deploy
-# hook creates/updates from `git rev-parse HEAD` before each deploy.
-# optional: true ensures pods still start even if the ConfigMap is absent
-# (e.g. a plain `kubectl apply` without the hook).
+# JSON 6902 patch — appends Datadog Code Origin env vars to the first container
+# of every targeted Deployment.
+# DD_GIT_* values are read from the "git-info" ConfigMap created by deploy.sh
+# before each deploy.  optional: true lets pods start even without the ConfigMap.
 - op: add
   path: /spec/template/spec/containers/0/env/-
   value:
@@ -22,3 +20,8 @@
         name: git-info
         key: DD_GIT_REPOSITORY_URL
         optional: true
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: DD_CODE_ORIGIN_FOR_SPANS_ENABLED
+    value: "true"
