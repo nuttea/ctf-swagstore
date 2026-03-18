@@ -231,24 +231,16 @@ Use `skaffold build` to build all container images and push them to your registr
 | Flag | Description |
 | ---- | ----------- |
 | `--default-repo` | Registry prefix prepended to every image name |
-| `--tag` | Image tag applied to all built images (overrides `tagPolicy` in `skaffold.yaml`) |
 | `--platform` | Target CPU architecture for the built image |
+| `--tag` | Overrides `tagPolicy` — omit this to let `gitCommit/AbbreviatedTags` handle tagging automatically |
 
-### Mac Apple Silicon (arm64)
+### Mac Apple Silicon (arm64) / x86 / Intel / AMD64
 
-```bash
-skaffold build \
-  --default-repo=gcr.io/datadog-ese-sandbox \
-  --tag=latest \
-  --platform=linux/arm64
-```
-
-### x86 / Intel / AMD64
+> No `--tag` flag — Skaffold uses the git short SHA automatically.
 
 ```bash
 skaffold build \
   --default-repo=gcr.io/datadog-ese-sandbox \
-  --tag=latest \
   --platform=linux/amd64
 ```
 
@@ -257,7 +249,6 @@ skaffold build \
 ```bash
 skaffold build \
   --default-repo=gcr.io/datadog-ese-sandbox \
-  --tag=latest \
   --platform=linux/amd64 \
   --build-image=responseservice-v1
 ```
@@ -302,7 +293,6 @@ By default Skaffold caches images and skips rebuilding if the source hasn't chan
 # Force rebuild all images
 skaffold build \
   --default-repo=gcr.io/datadog-ese-sandbox \
-  --tag=latest \
   --platform=linux/amd64 \
   --cache-artifacts=false
 ```
@@ -311,7 +301,6 @@ skaffold build \
 # Force rebuild a single image (e.g. loadgenerator)
 skaffold build \
   --default-repo=gcr.io/datadog-ese-sandbox \
-  --tag=latest \
   --platform=linux/amd64 \
   --build-image=loadgenerator \
   --cache-artifacts=false
@@ -372,20 +361,23 @@ Launch a local Kubernetes cluster with one of the following tools:
    
 	**Change the platform and default-repo to match your machine and registry.**
 
-	Use `./deploy.sh` (not `skaffold run` directly) to also inject Datadog Code Origin env vars into the cluster.
+	Use `./deploy.sh` instead of `skaffold run` directly. It handles change detection, Datadog Code Origin, and `:latest` aliasing automatically.
 
-	**Change the platform and default-repo to match your machine and registry.**
-
-	Mac Apple Silicon (M1/M2/M3 — arm64) / x86 / Intel Mac / AMD64:
-
-	  ```bash
-	  ./deploy.sh \
-	    --default-repo=gcr.io/datadog-ese-sandbox \
-	    --tag=latest \
-	    --platform=linux/amd64
-	  ```
+	```bash
+	./deploy.sh \
+	  --default-repo=gcr.io/datadog-ese-sandbox \
+	  --platform=linux/amd64
+	```
 
 	> GKE nodes are always x86 — use `--platform=linux/amd64` regardless of your Mac architecture.
+
+	**How it works:**
+
+	| Step | What happens |
+	|------|-------------|
+	| `gitCommit/AbbreviatedTags` | Skaffold tags images as `<7-char-sha>` (or `<sha>-dirty`). Only rebuilds if that tag is absent from the registry → **change detection**. |
+	| `git-info` ConfigMap | `DD_GIT_COMMIT_SHA` is updated with the full SHA before deploy → **Datadog Code Origin**. |
+	| `:latest` alias | After deploy, every image is re-tagged as `:latest` in the registry using `docker buildx imagetools create` (no layer download). |
 
    > **Note:** The above commands deploy the main app only. The `loadgenerator` is a separate Skaffold config and must be deployed explicitly (it starts with `replicas: 0` — scale up when ready):
    >
