@@ -52,7 +52,7 @@ build:
     context: src/attack-simulator
   tagPolicy:
     gitCommit:
-      variant: AbbreviatedCommitSha   # always <7-char-sha> or <7-char-sha>-dirty
+      variant: AbbrevCommitSha   # always <7-char-sha> or <7-char-sha>-dirty
   local:
     # useBuildkit: false
     useBuildkit: true
