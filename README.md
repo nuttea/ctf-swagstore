@@ -264,7 +264,9 @@ skaffold build \
 
 ### Datadog APM Code Origin & Source Code Integration
 
-Every `skaffold run` / `skaffold deploy` automatically injects the current git commit SHA into a Kubernetes ConfigMap called `git-info` via a pre-deploy hook:
+The `deploy.sh` wrapper script injects the current git commit SHA into a Kubernetes ConfigMap called `git-info` **before** calling `skaffold run`. Use `./deploy.sh` instead of `skaffold run` directly to enable Code Origin.
+
+> **Note:** Skaffold v3 does not support pre-deploy hooks on `DeployConfig`, so `deploy.sh` acts as the hook runner.
 
 ```bash
 kubectl get configmap git-info -o yaml
@@ -283,7 +285,7 @@ This enables:
 - **[Code Origin](https://docs.datadoghq.com/tracing/code_origin/)** — APM error frames link directly to source lines in Datadog
 - **[Source Code Integration](https://docs.datadoghq.com/source_code/service-mapping/)** — Service Catalog shows the repository and last deployed commit
 
-If you run `kubectl apply` directly (without Skaffold), create the ConfigMap manually first:
+If you need to create the ConfigMap manually (e.g. `kubectl apply` without the script):
 
 ```bash
 kubectl create configmap git-info \
@@ -370,13 +372,20 @@ Launch a local Kubernetes cluster with one of the following tools:
    
 	**Change the platform and default-repo to match your machine and registry.**
 
-	Mac Apple Silicon (M1/M2/M3 — arm64):
+	Use `./deploy.sh` (not `skaffold run` directly) to also inject Datadog Code Origin env vars into the cluster.
 
-	  `skaffold run --default-repo=gcr.io/datadog-ese-sandbox --tag=latest --platform=linux/arm64`
+	**Change the platform and default-repo to match your machine and registry.**
 
-	x86 / Intel Mac / AMD64:
+	Mac Apple Silicon (M1/M2/M3 — arm64) / x86 / Intel Mac / AMD64:
 
-	  `skaffold run --default-repo=gcr.io/datadog-ese-sandbox --tag=latest --platform=linux/amd64`
+	  ```bash
+	  ./deploy.sh \
+	    --default-repo=gcr.io/datadog-ese-sandbox \
+	    --tag=latest \
+	    --platform=linux/amd64
+	  ```
+
+	> GKE nodes are always x86 — use `--platform=linux/amd64` regardless of your Mac architecture.
 
    > **Note:** The above commands deploy the main app only. The `loadgenerator` is a separate Skaffold config and must be deployed explicitly (it starts with `replicas: 0` — scale up when ready):
    >

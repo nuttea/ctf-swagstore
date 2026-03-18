@@ -63,20 +63,6 @@ manifests:
   - ./kubernetes-manifests/chatbot-setup-job.yaml
 deploy:
   kubectl: {}
-  hooks:
-    before:
-      # Inject the current git commit SHA and repo URL into a ConfigMap so that
-      # all pods can expose them as DD_GIT_COMMIT_SHA / DD_GIT_REPOSITORY_URL.
-      # This enables Datadog APM Code Origin and Source Code Integration.
-      - host:
-          command:
-            - sh
-            - -c
-            - |
-              kubectl create configmap git-info \
-                --from-literal=DD_GIT_COMMIT_SHA=$(git rev-parse HEAD) \
-                --from-literal=DD_GIT_REPOSITORY_URL=https://github.com/nuttea/ctf-swagstore \
-                --dry-run=client -o yaml | kubectl apply -f -
 # "gcb" profile allows building and pushing the images
 # on Google Container Builder without requiring docker
 # installed on the developer machine. However, note that
