@@ -25,3 +25,8 @@
   value:
     name: DD_CODE_ORIGIN_FOR_SPANS_ENABLED
     value: "true"
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: DD_APPSEC_ENABLED
+    value: "true"

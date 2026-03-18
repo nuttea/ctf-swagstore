@@ -33,7 +33,7 @@ RUN echo ${TARGETARCH}
 # Skaffold passes in debug-oriented compiler flags
 ARG SKAFFOLD_GO_GCFLAGS
 RUN go mod tidy
-RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -gcflags="${SKAFFOLD_GO_GCFLAGS}" -o /go/bin/frontend .
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -tags appsec -gcflags="${SKAFFOLD_GO_GCFLAGS}" -o /go/bin/frontend .
 
 FROM alpine:3.17.0 as release
 RUN apk add --no-cache ca-certificates \
