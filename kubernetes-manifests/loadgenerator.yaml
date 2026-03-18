@@ -19,7 +19,7 @@ spec:
   selector:
     matchLabels:
       app: loadgenerator
-  replicas: 0
+  replicas: 1
   template:
     metadata:
       labels:
@@ -40,12 +40,20 @@ spec:
         - /bin/sh
         - -exc
         - |
+          # Poll /_healthz (not /) so attack-simulator 500s on the root path
+          # don't cause a false failure. Retry up to 10 times with 3s backoff.
           echo "Init container pinging frontend: ${FRONTEND_ADDR}..."
-          STATUSCODE=$(wget --server-response http://${FRONTEND_ADDR} 2>&1 | awk '/^  HTTP/{print $2}')
-          if test $STATUSCODE -ne 200; then
-              echo "Error: Could not reach frontend - Status code: ${STATUSCODE}"
-              exit 1
-          fi
+          for i in $(seq 1 10); do
+            STATUSCODE=$(wget --server-response http://${FRONTEND_ADDR}/_healthz 2>&1 | awk '/^  HTTP/{print $2}' | tail -1)
+            if test "${STATUSCODE}" = "200"; then
+              echo "Frontend is ready (attempt ${i})"
+              exit 0
+            fi
+            echo "Attempt ${i}: Status ${STATUSCODE}, retrying in 3s..."
+            sleep 3
+          done
+          echo "Error: Could not reach frontend after 10 attempts - last status: ${STATUSCODE}"
+          exit 1
         name: frontend-check
         securityContext:
           allowPrivilegeEscalation: false
@@ -76,7 +84,7 @@ spec:
           value: "10"
         resources:
           requests:
-            cpu: 300m
+            cpu: 200m
             memory: 256Mi
           limits:
             cpu: 500m
