@@ -235,7 +235,11 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 			span.SetTag("error.message", "product not found")
 			return nil, status.Errorf(codes.NotFound, "no product with ID %s", req.Id)
 		}
-		
+
+		// Enrich span with resolved product attributes (visible in checkout trace)
+		span.SetTag("product.name", found.Name)
+		span.SetTag("product.categories", found.Categories)
+
 		// Log product info with trace context (JSON catalog fallback path)
 		duration := time.Since(startTime)
 		traceID := fmt.Sprintf("%v", span.Context().TraceID())
@@ -246,7 +250,11 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 		
 		return found, nil
 	}
-	
+
+	// Enrich span with resolved product attributes (visible in checkout trace)
+	span.SetTag("product.name", product.Name)
+	span.SetTag("product.categories", product.Categories)
+
 	// Log product info with trace context (database path)
 	duration := time.Since(startTime)
 	traceID := fmt.Sprintf("%v", span.Context().TraceID())
