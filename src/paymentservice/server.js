@@ -56,6 +56,13 @@ class HipsterShopServer {
       const response = charge(call.request);
       callback(null, response);
     } catch (err) {
+      // Explicitly mark the active span as an error so Datadog APM captures
+      // error.type / error.message / error.stack regardless of how gRPC
+      // transforms the error object before dd-trace's gRPC plugin sees it.
+      const span = tracer.scope().active();
+      if (span) {
+        span.setTag('error', err);
+      }
       console.warn(err);
       callback(err);
     }
