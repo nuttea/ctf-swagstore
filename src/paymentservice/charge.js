@@ -25,8 +25,7 @@ const logger = pino({
       return { severity: logLevelString }
     },
     log(obj) {
-          // ログの前にタイムスタンプを追加
-          obj.timestamp = new Date().toISOString();  // ISO形式のタイムスタンプ
+          obj.timestamp = new Date().toISOString();  // ISO 8601 format for log sorting
           return obj;
     }
   }
@@ -81,11 +80,12 @@ module.exports = function charge (request) {
   const traceId = span ? span.context().toTraceId() : 'no-trace';
   const spanId = span ? span.context().toSpanId() : 'no-span';
 
-  //console.log(`[Trace ID: ${traceId}, Span ID: ${spanId}] Card number: ${cardNumber}`); // デバッグ用ログ
-  //console.log(`Card type: ${cardType}`); // デバッグ用ログ
-  //console.log(`Card valid: ${valid}`); // デバッグ用ログ
-  //console.log(`Expiration year: ${creditCard.credit_card_expiration_year}`); // デバッグ用ログ
-  //console.log(`Expiration month: ${creditCard.credit_card_expiration_month}`); // デバッグ用ログ
+  // Verbose debug logging (disabled in production)
+  //console.log(`[Trace ID: ${traceId}, Span ID: ${spanId}] Card number: ${cardNumber}`);
+  //console.log(`Card type: ${cardType}`);
+  //console.log(`Card valid: ${valid}`);
+  //console.log(`Expiration year: ${creditCard.credit_card_expiration_year}`);
+  //console.log(`Expiration month: ${creditCard.credit_card_expiration_month}`);
 
   if (!valid) { throw new InvalidCreditCard(); }
 
@@ -97,7 +97,9 @@ module.exports = function charge (request) {
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
   const { credit_card_expiration_year: year, credit_card_expiration_month: month } = creditCard;
-  // Specific check for the year 2025
+  // CTF #15-17: Reject cards expiring in 2025 — triggers SpecificYearCreditCardError with "bits" flag
+  // Simulated by locustfile user eve.martinez@example.com (credit_card_expiration_year: 2025)
+  // Expected: this error appears in Datadog APM as the deepest downstream error in the checkout trace
   if (year === 2025) {
    logger.error(`SpecificYearCreditCardError: Credit cards with an expiration year of ${year} are not accepted. The flag is "bits" Trace ID: ${traceId}`);
    throw new SpecificYearCreditCardError(year); }

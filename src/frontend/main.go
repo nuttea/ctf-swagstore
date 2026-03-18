@@ -171,7 +171,7 @@ func main() {
 	r.HandleFunc("/robots.txt", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "User-agent: *\nDisallow: /") })
 	r.HandleFunc("/_healthz", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "ok") })
 
-	// APIルートを追加（既存のルート設定部分に追加）
+	// Register JSON API route for product data
 	r.HandleFunc("/api/product/{id}", svc.productAPIHandler).Methods(http.MethodGet)
 
 	var handler http.Handler = r
@@ -189,42 +189,41 @@ func initStats(log logrus.FieldLogger) {
 }
 
 func init() {
-    // PostgreSQL driver をDatadog tracing付きで登録
+    // Register PostgreSQL driver with Datadog DBM tracing — enables CTF challenges #60-66
+    // (Database Monitoring: query samples, execution plans, lock wait events)
     sqltrace.Register("postgres", &pq.Driver{}, 
         sqltrace.WithDBMPropagation(tracer.DBMPropagationModeFull),
-        sqltrace.WithServiceName("login-postgres"), // PostgreSQL側のサービス名を明示的に指定
-        sqltrace.WithAnalytics(true),         // アナリティクスを有効化
-        // sqltrace.WithCommentInjection(true),  // SQLコメントインジェクションを有効化（現在のバージョンではサポートされていない）
+        sqltrace.WithServiceName("login-postgres"), // Explicit service name for DBM query attribution
+        sqltrace.WithAnalytics(true),               // Enable Analytics for query visibility in Datadog
+        // sqltrace.WithCommentInjection(true),     // SQL comment injection - not supported in current version
     )
-	// データベース接続の初期化
+	// Legacy global DB init (unused — each handler opens its own connection)
 	// var err error
-	// PostgreSQL接続情報を設定
 	// connStr := "host=postgres port=5432 user=postgres password=password dbname=swagstoredb sslmode=disable"
 	// db, err = sqltrace.Open("postgres", connStr, sqltrace.WithDBMPropagation(tracer.DBMPropagationModeFull))
 	// if err != nil {
-	//	logrus.Fatal("データベース接続エラー:", err)
+	//	logrus.Fatal("database connection error:", err)
 	//}
-	// 接続の確認
-	//err = db.Ping()
+	// err = db.Ping()
 	//if err != nil {
-	//	logrus.Fatal("データベース接続確認エラー:", err)
+	//	logrus.Fatal("database ping error:", err)
 	//}
 }
 
 // Login page handler
 func loginPage(w http.ResponseWriter, r *http.Request) {
-    // トレーシングでログインページの処理をラップ（コンテキストから開始）
+    // Wrap login page render in a trace span
     span, _ := tracer.StartSpanFromContext(r.Context(), "login.page")
     defer span.Finish()
     
-    // テンプレートを使用してログインページをレンダリング
+    // Render login page template
     if err := templates.ExecuteTemplate(w, "login", map[string]interface{}{
         "session_id":        sessionID(r),
         "request_id":        r.Context().Value(ctxKeyRequestID{}),
         "user_currency":     currentCurrency(r),
         "show_currency":     true,
         "currencies":        []string{"EUR", "USD", "JPY", "GBP", "TRY", "CAD"},
-        "cart_size":         0, // ログインページでは仮に0
+        "cart_size":         0, // cart is not available on the login page
         "banner_color":      os.Getenv("BANNER_COLOR"),
         "platform_css":      plat.css,
         "platform_name":     plat.provider,
@@ -235,36 +234,37 @@ func loginPage(w http.ResponseWriter, r *http.Request) {
     }
 }
 
-// Login action handler
+// Login action handler — serves both GET (show page) and POST (authenticate)
+// CTF #63-66: This handler deliberately creates DB lock contention visible in Datadog DBM
 func loginHandler(w http.ResponseWriter, r *http.Request) {
     span, ctx := tracer.StartSpanFromContext(r.Context(), "login.handler")
     defer span.Finish()
     
-    // スパンにタグを追加
+    // Tag span with HTTP request attributes
     span.SetTag("http.method", r.Method)
     span.SetTag("http.url", r.URL.Path)
 
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 	
-	// GETメソッドでパラメータがない場合は、ログインページを表示
+	// Show login page on GET requests with no credentials
 	if r.Method == "GET" && username == "" && password == "" {
 		loginPage(w, r)
 		return
 	}
 	
-	// ユーザー名をタグに追加（セキュリティ上、実際の値は避ける場合もあります）
+	// Tag span with submitted username (visible in Datadog APM traces)
 	span.SetTag("user.username", username)
 
-    // DB接続スパンを親コンテキストから作成
+    // Create DB connection span as child of the login span
     spanConnect, ctxConnect := tracer.StartSpanFromContext(ctx, "db.connect")
     defer spanConnect.Finish()
     
-    // 🔧 FIX: コンテキストタイムアウトを10分に延長（SQLインジェクション攻撃用）
+    // Extended timeout allows lock contention scenario to complete (CTF #65 — LOCK wait event)
     ctxWithTimeout, cancel := context.WithTimeout(ctxConnect, 10*time.Minute)
     defer cancel()
     
-    // DB接続情報をタグに追加
+    // Tag span with DB connection metadata
     spanConnect.SetTag("db.type", "postgresql")
     spanConnect.SetTag("db.host", "postgres")
     spanConnect.SetTag("db.port", "5432")
@@ -284,12 +284,12 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
        log.Println("DB Connect Error:", err)
        span.SetTag("error", true)
        span.SetTag("error.msg", err.Error())
-       http.Error(w, "データベース接続エラー", http.StatusInternalServerError)
+       http.Error(w, "Database connection error", http.StatusInternalServerError)
        return
     }
     defer db.Close()
 
-    // ブロッキング用の別接続を作成
+    // Second DB connection to run the blocked SELECT on a separate transaction (CTF #65)
     db2, err := sqltrace.Open("postgres", connStr, 
         sqltrace.WithDBMPropagation(tracer.DBMPropagationModeFull),
         sqltrace.WithServiceName("login-postgres"),
@@ -299,12 +299,12 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
        log.Println("DB2 Connect Error:", err)
        span.SetTag("error", true)
        span.SetTag("error.msg", err.Error())
-       http.Error(w, "データベース接続エラー", http.StatusInternalServerError)
+       http.Error(w, "Database connection error", http.StatusInternalServerError)
        return
     }
     defer db2.Close()
 
-    // 第1トランザクション: ロックを取得して保持
+    // CTF #65: Transaction 1 — acquire EXCLUSIVE lock and hold it to block Tx2
     spanBegin1, ctxBegin1 := tracer.StartSpanFromContext(ctxConnect, "db.begin.blocking")
     defer spanBegin1.Finish()
     
@@ -321,11 +321,11 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
         log.Println("Transaction 1 Begin Error:", err)
         spanBegin1.SetTag("error", true)
         spanBegin1.SetTag("error.msg", err.Error())
-        http.Error(w, "データベースエラー", http.StatusInternalServerError)
+        http.Error(w, "Database error", http.StatusInternalServerError)
         return
     }
 
-    // テーブル全体をロックするスパン（第1トランザクション）
+    // CTF #65: Span for the EXCLUSIVE table lock (Tx1) — visible in Datadog DBM as the blocking query
     spanLock, ctxLock := tracer.StartSpanFromContext(ctxBegin1, "db.lock.table.blocking")
     defer spanLock.Finish()
     
@@ -339,7 +339,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
     spanLock.SetTag("env", "ctf")
     spanLock.SetTag("service", "frontend")
 
-    // テーブルロック（第1トランザクション）
+    // CTF #65: Acquire EXCLUSIVE lock on users table — blocks all concurrent SELECTs (Tx2)
     log.Printf("Acquiring EXCLUSIVE lock on users table")
     _, err = tx1.ExecContext(ctxLock, "LOCK TABLE public.\"users\" IN EXCLUSIVE MODE")
     if err != nil {
@@ -347,11 +347,11 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
        spanLock.SetTag("error", true)
        spanLock.SetTag("error.msg", err.Error())
        tx1.Rollback()
-       http.Error(w, "データベースエラー", http.StatusInternalServerError)
+       http.Error(w, "Database error", http.StatusInternalServerError)
        return
     }
 
-    // 第2トランザクション: ブロックされるSELECTクエリを実行
+    // CTF #65: Transaction 2 — run the SELECT that gets blocked by Tx1's EXCLUSIVE lock
     spanBegin2, ctxBegin2 := tracer.StartSpanFromContext(ctxConnect, "db.begin.blocked")
     defer spanBegin2.Finish()
     
@@ -369,11 +369,11 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
         spanBegin2.SetTag("error", true)
         spanBegin2.SetTag("error.msg", err.Error())
         tx1.Rollback()
-        http.Error(w, "データベースエラー", http.StatusInternalServerError)
+        http.Error(w, "Database error", http.StatusInternalServerError)
         return
     }
 
-    // SQL クエリ実行のスパン（第2トランザクション - ブロックされる）
+    // CTF #60/#65: Span for the blocked SELECT query (Tx2) — visible in Datadog DBM query samples
     spanQuery, ctxQuery := tracer.StartSpanFromContext(ctxBegin2, "db.query.select.password.blocked")
     defer spanQuery.Finish()
     
@@ -386,21 +386,22 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
     spanQuery.SetTag("db.port", "5432")
     spanQuery.SetTag("env", "ctf")
     spanQuery.SetTag("service", "frontend")
-    spanQuery.SetTag("blocked_by", "EXCLUSIVE_LOCK")  // ブロック理由を明示
+    spanQuery.SetTag("blocked_by", "EXCLUSIVE_LOCK") // Visible in DBM as the lock wait event (CTF #66)
 
-    // ブロックされるSELECTクエリを実行（第2トランザクション）
+    // Execute SELECT that will be blocked until Tx1 releases the EXCLUSIVE lock
     log.Printf("Executing SELECT query that will be blocked...")
 
-    // 🔧 FIX: results変数を宣言
+    // results holds matched rows for the authentication check
     var results []struct {
         Username string
         Password string
     }
 
-    // 別のgoroutineでSELECTを実行してブロック状況を作る
+    // Run vulnerable SELECT in a goroutine to create a natural lock contention scenario
     done := make(chan error, 1)
     go func() {
-        // 🚨 WARNING: SQLインジェクション脆弱性テスト用（本番環境では絶対に使用禁止！）
+        // CTF #56/#57: Intentional SQL injection vulnerability for security challenge simulation
+        // WARNING: string-formatted query — never use this pattern in production
         slowQuery := fmt.Sprintf(`
             SELECT username, password 
             FROM public."users" 
@@ -410,10 +411,10 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
         
         log.Printf("🚨 [VULNERABLE] Executing SQL: %s", slowQuery)
         
-        // 人工的な遅延をGoで実装
+        // Artificial delay ensures lock contention is observable in Datadog DBM (CTF #66)
         time.Sleep(1 * time.Second)
         
-        // 🔧 FIX: QueryContext を使用（複数行対応）
+        // Use QueryContext for multi-row result support
         rows, err := tx2.QueryContext(ctxQuery, slowQuery)
         if err != nil {
             done <- err
@@ -421,7 +422,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
         }
         defer rows.Close()
         
-        // 🔧 FIX: 2つの変数でScan
+        // Scan both username and password columns
         for rows.Next() {
             var foundUsername, foundPassword string
             if err := rows.Scan(&foundUsername, &foundPassword); err != nil {
@@ -439,10 +440,10 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
         done <- rows.Err()
     }()
 
-    // 少し待ってからロックを解放
+    // Hold lock long enough for contention to be visible in Datadog DBM (#66 — Lock wait event group)
     time.Sleep(2 * time.Second)
 
-    // 第1トランザクションをコミット（ロック解放）
+    // CTF #65: Commit Tx1 — releases EXCLUSIVE lock, unblocking Tx2
     spanCommit1, _ := tracer.StartSpanFromContext(ctxLock, "db.commit.release_lock")
     defer spanCommit1.Finish()
     
@@ -461,18 +462,18 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
        spanCommit1.SetTag("error.msg", err.Error())
     }
 
-    // SELECTクエリの完了を待つ
+    // Wait for Tx2 SELECT to complete after lock is released
     err = <-done
     if err != nil {
         log.Println("DB Query Error:", err)
         spanQuery.SetTag("error", true)
         spanQuery.SetTag("error.msg", err.Error())
         tx2.Rollback()
-        http.Error(w, "ユーザー名またはパスワードが間違っています", http.StatusUnauthorized)
+        http.Error(w, "Incorrect username or password", http.StatusUnauthorized)
         return
     }
 
-    // 🔧 FIX: 認証チェック（新しいパターン）
+    // Check returned rows for a matching password
     authenticated := false
     for _, result := range results {
         log.Printf("🚨 Checking user: %s with password: %s against input password: %s", result.Username, result.Password, password)
@@ -488,11 +489,11 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
         span.SetTag("auth.result", "failed")
         span.SetTag("auth.reason", "incorrect_password")
         tx2.Rollback()
-        http.Error(w, "ユーザー名またはパスワードが間違っています", http.StatusUnauthorized)
+        http.Error(w, "Incorrect username or password", http.StatusUnauthorized)
         return
     }
 
-    // 第2トランザクションをコミット
+    // Commit Tx2 to finalize the successful query
     spanCommit2, _ := tracer.StartSpanFromContext(ctxQuery, "db.commit.blocked_query")
     defer spanCommit2.Finish()
     
@@ -509,15 +510,15 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
        log.Println("Transaction 2 Commit Error:", err)
        spanCommit2.SetTag("error", true)
        spanCommit2.SetTag("error.msg", err.Error())
-       http.Error(w, "データベースエラー", http.StatusInternalServerError)
+       http.Error(w, "Database error", http.StatusInternalServerError)
        return
     }
 
-    // 成功タグを設定
+    // Tag span with successful authentication result
     span.SetTag("auth.result", "success")
     span.SetTag("http.status_code", "302")
 
-    // ログイン成功、ホームページにリダイレクト
+    // Redirect to home page on successful login
     http.Redirect(w, r, "/", http.StatusFound)
 }
 
@@ -534,16 +535,16 @@ type LoginResponse struct {
     RedirectUrl string `json:"redirectUrl,omitempty"`
 }
 
-// RUMトレーシング情報を構造体で管理
+// RUMTraceInfo holds RUM-APM correlation headers for end-to-end trace linking (CTF #63)
 type RUMTraceInfo struct {
     TraceID  string
     SpanID   string
     HasTrace bool
 }
 
-// RUMトレーシングヘッダーからトレース情報を抽出
+// extractRUMTraceInfo reads Datadog RUM propagation headers for APM-RUM correlation
 func extractRUMTraceInfo(r *http.Request) RUMTraceInfo {
-    // Datadog RUM トレーシングヘッダーを取得
+    // Read Datadog RUM trace propagation headers
     traceID := r.Header.Get("x-datadog-trace-id")
     spanID := r.Header.Get("x-datadog-parent-id")
     
@@ -554,31 +555,32 @@ func extractRUMTraceInfo(r *http.Request) RUMTraceInfo {
     }
 }
 
-// JSON API Login handler with RUM trace correlation
+// JSON API Login handler — called by the login page via AJAX, correlates RUM session with APM trace
+// CTF #63-66: Same lock contention pattern as loginHandler, used by attack-simulator (#56)
 func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
-    // RUMトレーシング情報を取得
+    // Extract RUM trace headers for APM-RUM correlation (CTF #63 — longest RUM event)
     rumInfo := extractRUMTraceInfo(r)
     
-    // スパンを作成
+    // Start APM span for the JSON login API
     span, ctx := tracer.StartSpanFromContext(r.Context(), "login.api.handler")
     defer span.Finish()
     
-    // リクエストヘッダーを確認
+    // Set JSON response content type
     w.Header().Set("Content-Type", "application/json")
     
-    // スパンにタグを追加
+    // Tag span with HTTP request attributes
     span.SetTag("http.method", r.Method)
     span.SetTag("http.url", r.URL.Path)
     span.SetTag("request.type", "ajax")
     span.SetTag("rum.correlation", rumInfo.HasTrace)
     
-    // RUMからのトレーシング情報をタグに追加
+    // Propagate RUM trace context into APM span for end-to-end correlation (CTF #63)
     if rumInfo.HasTrace {
         span.SetTag("rum.trace_id", rumInfo.TraceID)
         span.SetTag("rum.span_id", rumInfo.SpanID)
     }
     
-    // リクエストボディを解析
+    // Parse JSON request body
     var loginReq LoginRequest
     if err := json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
         span.SetTag("error", true)
@@ -586,25 +588,25 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
         
         response := LoginResponse{
             Success: false,
-            Message: "無効なリクエスト形式です",
+            Message: "Invalid request format",
         }
         w.WriteHeader(http.StatusBadRequest)
         json.NewEncoder(w).Encode(response)
         return
     }
     
-    // ユーザー名をタグに追加
+    // Tag span with submitted username
     span.SetTag("user.username", loginReq.Username)
     
-    // DB接続スパンを親コンテキストから作成
+    // Create DB connection span as child of login.api.handler span
     spanConnect, ctxConnect := tracer.StartSpanFromContext(ctx, "db.connect")
     defer spanConnect.Finish()
     
-    // 🔧 FIX: コンテキストタイムアウトを10分に延長（SQLインジェクション攻撃用）
+    // Extended timeout allows lock contention scenario to complete (CTF #65)
     ctxWithTimeout, cancel := context.WithTimeout(ctxConnect, 10*time.Minute)
     defer cancel()
     
-    // DB接続情報をタグに追加
+    // Tag span with DB connection metadata
     spanConnect.SetTag("db.type", "postgresql")
     spanConnect.SetTag("db.host", "postgres")
     spanConnect.SetTag("db.port", "5432")
@@ -626,7 +628,7 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
         
         response := LoginResponse{
             Success: false,
-            Message: "データベース接続エラーが発生しました",
+            Message: "Database connection error",
         }
         w.WriteHeader(http.StatusInternalServerError)
         json.NewEncoder(w).Encode(response)
@@ -634,7 +636,7 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
     }
     defer db.Close()
 
-    // 同じブロッキングロジックを実装
+    // Second DB connection for the blocked SELECT (same locking pattern as loginHandler)
     db2, err := sqltrace.Open("postgres", connStr, 
         sqltrace.WithDBMPropagation(tracer.DBMPropagationModeFull),
         sqltrace.WithServiceName("login-postgres"),
@@ -646,7 +648,7 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
         
         response := LoginResponse{
             Success: false,
-            Message: "データベース接続エラーが発生しました",
+            Message: "Database connection error",
         }
         w.WriteHeader(http.StatusInternalServerError)
         json.NewEncoder(w).Encode(response)
@@ -654,7 +656,7 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
     }
     defer db2.Close()
 
-    // 第1トランザクション: ロックを取得して保持
+    // CTF #65: Transaction 1 — acquire EXCLUSIVE lock and hold it to block Tx2
     spanBegin1, ctxBegin1 := tracer.StartSpanFromContext(ctxConnect, "db.begin.blocking")
     defer spanBegin1.Finish()
     
@@ -673,14 +675,14 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
         
         response := LoginResponse{
             Success: false,
-            Message: "データベースエラーが発生しました",
+            Message: "Database error",
         }
         w.WriteHeader(http.StatusInternalServerError)
         json.NewEncoder(w).Encode(response)
         return
     }
 
-    // テーブル全体をロックするスパン
+    // CTF #65: Span for the EXCLUSIVE table lock (Tx1) — visible in Datadog DBM as the blocking query
     spanLock, ctxLock := tracer.StartSpanFromContext(ctxBegin1, "db.lock.table.blocking")
     defer spanLock.Finish()
     
@@ -694,7 +696,7 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
     spanLock.SetTag("env", "ctf")
     spanLock.SetTag("service", "frontend")
 
-    // テーブルロック
+    // CTF #65: Acquire EXCLUSIVE lock on users table — blocks all concurrent SELECTs (Tx2)
     _, err = tx1.ExecContext(ctxLock, "LOCK TABLE public.\"users\" IN EXCLUSIVE MODE")
     if err != nil {
         spanLock.SetTag("error", true)
@@ -703,14 +705,14 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
         
         response := LoginResponse{
             Success: false,
-            Message: "データベースエラーが発生しました",
+            Message: "Database error",
         }
         w.WriteHeader(http.StatusInternalServerError)
         json.NewEncoder(w).Encode(response)
         return
     }
 
-    // 第2トランザクション: ブロックされるSELECTクエリを実行
+    // CTF #65: Transaction 2 — run the SELECT blocked by Tx1's EXCLUSIVE lock
     spanBegin2, ctxBegin2 := tracer.StartSpanFromContext(ctxConnect, "db.begin.blocked")
     defer spanBegin2.Finish()
     
@@ -730,14 +732,14 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
         
         response := LoginResponse{
             Success: false,
-            Message: "データベースエラーが発生しました",
+            Message: "Database error",
         }
         w.WriteHeader(http.StatusInternalServerError)
         json.NewEncoder(w).Encode(response)
         return
     }
 
-    // SQL クエリ実行のスパン
+    // CTF #60/#65: Span for the blocked SELECT query — visible in Datadog DBM query samples
     spanQuery, ctxQuery := tracer.StartSpanFromContext(ctxBegin2, "db.query.select.password.blocked")
     defer spanQuery.Finish()
     
@@ -752,7 +754,7 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
     spanQuery.SetTag("service", "frontend")
     spanQuery.SetTag("blocked_by", "EXCLUSIVE_LOCK")
 
-    // ブロックされるSELECTクエリを実行
+    // CTF #60: Vulnerable SELECT — visible in Datadog DBM as the top login credential query
     var results []struct {
         Username string
         Password string
@@ -760,6 +762,8 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
 
     done := make(chan error, 1)
     go func() {
+        // CTF #56/#57: Intentional SQL injection vulnerability for security challenge simulation
+        // WARNING: string-formatted query — never use this pattern in production
         slowQuery := fmt.Sprintf(`
             SELECT username, password 
             FROM public."users" 
@@ -769,7 +773,7 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
         
         log.Printf("🚨 [VULNERABLE] Executing SQL: %s", slowQuery)
         
-        // 🔧 FIX: QueryContext を使用（複数行対応）
+        // Use QueryContext for multi-row result support
         rows, err := tx2.QueryContext(ctxQuery, slowQuery)
         if err != nil {
             done <- err
@@ -777,7 +781,7 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
         }
         defer rows.Close()
         
-        // 🔧 FIX: 2つの変数でScan
+        // Scan both username and password columns
         for rows.Next() {
             var foundUsername, foundPassword string
             if err := rows.Scan(&foundUsername, &foundPassword); err != nil {
@@ -795,10 +799,10 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
         done <- rows.Err()
     }()
 
-    // 少し待ってからロックを解放
+    // Hold lock long enough for contention to be visible in Datadog DBM (CTF #66 — Lock wait event group)
     time.Sleep(2 * time.Second)
 
-    // 第1トランザクションをコミット
+    // CTF #65: Commit Tx1 — releases EXCLUSIVE lock, unblocking Tx2
     spanCommit1, _ := tracer.StartSpanFromContext(ctxConnect, "db.commit.release_lock")
     defer spanCommit1.Finish()
     
@@ -817,14 +821,14 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
         
         response := LoginResponse{
             Success: false,
-            Message: "ユーザー名またはパスワードが間違っています",
+            Message: "Incorrect username or password",
         }
         w.WriteHeader(http.StatusUnauthorized)
         json.NewEncoder(w).Encode(response)
         return
     }
 
-    // 認証チェック（返された結果から一致するパスワードを探す）
+    // Check returned rows for a matching password
     authenticated := false
     for _, result := range results {
         log.Printf("🚨 Checking user: %s with password: %s against input password: %s", result.Username, result.Password, loginReq.Password)
@@ -843,14 +847,14 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
         
         response := LoginResponse{
             Success: false,
-            Message: "ユーザー名またはパスワードが間違っています",
+            Message: "Incorrect username or password",
         }
         w.WriteHeader(http.StatusUnauthorized)
         json.NewEncoder(w).Encode(response)
         return
     }
 
-    // 第2トランザクションをコミット
+    // Commit Tx2 to finalize the successful query
     spanCommit2, _ := tracer.StartSpanFromContext(ctxQuery, "db.commit.blocked_query")
     defer spanCommit2.Finish()
     
@@ -869,21 +873,21 @@ func loginAPIHandler(w http.ResponseWriter, r *http.Request) {
        
        response := LoginResponse{
            Success: false,
-           Message: "データベースエラーが発生しました",
+           Message: "Database error",
        }
        w.WriteHeader(http.StatusInternalServerError)
        json.NewEncoder(w).Encode(response)
        return
     }
 
-    // 成功タグを設定
+    // Tag span with successful authentication result
     span.SetTag("auth.result", "success")
     span.SetTag("http.status_code", "200")
 
-    // 成功レスポンスを返す
+    // Return success response with redirect URL
     response := LoginResponse{
         Success:     true,
-        Message:     "ログインに成功しました",
+        Message:     "Login successful",
         RedirectUrl: "/",
     }
     w.WriteHeader(http.StatusOK)
@@ -973,16 +977,16 @@ func chatbotProxyHandler(w http.ResponseWriter, r *http.Request) {
 	span.SetTag("http.method", r.Method)
 	span.SetTag("http.url", r.URL.Path)
 	
-	// Chatbot APIサービスのアドレス
+	// Get chatbot API service address
 	chatbotAPIAddr := os.Getenv("CHATBOT_API_ADDR")
 	if chatbotAPIAddr == "" {
 		chatbotAPIAddr = "http://chatbot-api:8080"
 	}
 	
-	// プロキシ先のURLを構築
+	// Build proxy target URL
 	targetURL := chatbotAPIAddr + "/api/chat"
 	
-	// 新しいHTTPリクエストを作成
+	// Create proxy HTTP request
 	proxyReq, err := http.NewRequestWithContext(r.Context(), "POST", targetURL, r.Body)
 	if err != nil {
 		span.SetTag("error", true)
@@ -991,10 +995,10 @@ func chatbotProxyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// ヘッダーをコピー
+	// Forward Content-Type header
 	proxyReq.Header.Set("Content-Type", "application/json")
 	
-	// リクエストを実行
+	// Execute proxy request
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(proxyReq)
 	if err != nil {
@@ -1005,7 +1009,7 @@ func chatbotProxyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 	
-	// レスポンスボディを読み取る
+	// Read proxy response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		span.SetTag("error", true)
@@ -1014,7 +1018,7 @@ func chatbotProxyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Content-Typeを設定
+	// Set response Content-Type and forward upstream status code
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
 	w.Write(body)

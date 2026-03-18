@@ -372,16 +372,16 @@
             type="text/javascript">
     </script>
     <script>
-        // Syntheticsセッションを完全にユーザーセッションとして偽装
-        // RUM初期化前にSynthetics識別変数を無効化
+        // Disguise Synthetic sessions as real user sessions so RUM captures them in user traffic
+        // Override Synthetics detection flag before RUM initializes
         if (window._DATADOG_SYNTHETICS_BROWSER === true) {
             console.log('🤖 Synthetic Bot detected - masquerading as real user');
             console.log('🎭 Overriding window._DATADOG_SYNTHETICS_BROWSER');
             
-            // Synthetics識別変数を無効化（完全偽装）
+            // Clear the flag to prevent RUM from filtering this session out
             window._DATADOG_SYNTHETICS_BROWSER = undefined;
             
-            // 追加のSynthetics識別要素も無効化
+            // Also remove the property entirely for complete masquerade
             delete window._DATADOG_SYNTHETICS_BROWSER;
             
             console.log('✅ Synthetic session will be treated as 100% real user session');
@@ -389,35 +389,42 @@
     </script>
     <script>
         window.DD_RUM && window.DD_RUM.init({
-          clientToken: 'pub51977a6380c1afb910488371b92d6241',
-          //clientToken: 'puba7c4b8886c144b0d6d7cf96be425eee7',
-          applicationId: 'c8cdffa6-a8eb-488b-b453-f2c5c7fae2c9',
-          //applicationId: '24dcfc27-d4a5-4b1b-a457-0bca5b9f9390',
-          // `site` refers to the Datadog site parameter of your organization
-          // see https://docs.datadoghq.com/getting_started/site/
-          // site: 'ap1.datadoghq.com',
-          site: 'ap1.datadoghq.com',
-          service: 'swagstore',
-          env: 'ctf',
-          // Specify a version number to identify the deployed version of your application in Datadog
-          // version: '1.0.0',
-          sessionSampleRate: 100,
-          sessionReplaySampleRate: 100,
-          trackUserInteractions: true,
-          trackResources: true,
-          trackLongTasks: true,
-          defaultPrivacyLevel: 'mask-user-input',
-          // APMとの自動Correlation設定
-          allowedTracingUrls: [
-              '/api/login',                           // ログインAPI
-              '/api/product/',                        // 商品詳細API
-              (url) => {
-                  console.log('🔍 RUM checking URL for tracing:', url);
-                  const shouldTrace = url.includes('/api/login') || url.includes('/api/product/');
-                  console.log('✅ Should trace:', shouldTrace);
-                  return shouldTrace;
-              }
-          ],
+            // sandbox applicationId: 'f4f6695e-e49f-4a20-a44c-0876505058f7',
+            // sanbox clientToken: 'pub18259938220b164ebde373050a1bd50b',
+            applicationId: '2d7b0743-9d76-4a17-bc36-8d260f0f7fa0',
+            clientToken: 'puba6861f82a12c23f792eacdeb54c007cd',
+            site: 'datadoghq.com',
+            service: 'swagstore',
+            env: 'ctf',
+            // clientToken: 'pub51977a6380c1afb910488371b92d6241',
+            //clientToken: 'puba7c4b8886c144b0d6d7cf96be425eee7',
+            //applicationId: 'c8cdffa6-a8eb-488b-b453-f2c5c7fae2c9',
+            //applicationId: '24dcfc27-d4a5-4b1b-a457-0bca5b9f9390',
+            // `site` refers to the Datadog site parameter of your organization
+            // see https://docs.datadoghq.com/getting_started/site/
+            // site: 'ap1.datadoghq.com',
+            // site: 'ap1.datadoghq.com',
+            //service: 'swagstore',
+            //env: 'ctf',
+            // Specify a version number to identify the deployed version of your application in Datadog
+            // version: '1.0.0',
+            sessionSampleRate: 100,
+            sessionReplaySampleRate: 100,
+            trackUserInteractions: true,
+            trackResources: true,
+            trackLongTasks: true,
+            defaultPrivacyLevel: 'mask-user-input',
+            // APM-RUM auto-correlation — links RUM sessions to APM traces (CTF #63-64)
+            allowedTracingUrls: [
+                '/api/login',      // Trace login API calls for session correlation (CTF #63-64)
+                '/api/product/',   // Trace product API calls
+                (url) => {
+                    console.log('🔍 RUM checking URL for tracing:', url);
+                    const shouldTrace = url.includes('/api/login') || url.includes('/api/product/');
+                    console.log('✅ Should trace:', shouldTrace);
+                    return shouldTrace;
+                }
+            ],
         });
     </script>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB"

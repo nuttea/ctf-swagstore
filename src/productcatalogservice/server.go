@@ -50,7 +50,7 @@ var (
 	catalogMutex *sync.Mutex
 	log          *logrus.Logger
 	
-	// PostgreSQL接続
+	// PostgreSQL connection handle (initialized in initDB)
 	db *sql.DB
 	
 	extraLatency time.Duration
@@ -84,7 +84,7 @@ func init() {
 func initDB() error {
 	log.Info("Starting PostgreSQL connection with sqltrace v7...")
 	
-	// PostgreSQL接続設定
+	// PostgreSQL connection configuration from environment variables
 	postgresHost := os.Getenv("POSTGRES_HOST")
 	if postgresHost == "" {
 		postgresHost = "postgres"
@@ -110,13 +110,13 @@ func initDB() error {
 		postgresDB = "swagstoredb"
 	}
 	
-	// PostgreSQL接続文字列
+	// Build PostgreSQL connection string
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		postgresHost, postgresPort, postgresUser, postgresPassword, postgresDB)
 	
 	log.Info("Connecting to PostgreSQL with sqltrace v7...")
 	
-	// Datadogトレーシング付きでPostgreSQLに接続
+	// Open PostgreSQL connection instrumented with Datadog DBM tracing
 	var err error
 	db, err = sqltrace.Open("postgres", connStr, 
 		sqltrace.WithDBMPropagation(tracer.DBMPropagationModeFull),
@@ -129,7 +129,7 @@ func initDB() error {
 		return err
 	}
 	
-	// 接続確認
+	// Verify connection is alive
 	if err := db.Ping(); err != nil {
 		log.WithError(err).Error("Failed to ping PostgreSQL")
 		return err
@@ -172,7 +172,7 @@ func mustParseEnv(target *time.Duration, envKey string) {
 	*target = d
 }
 
-// UnimplementedProductCatalogServiceServerを削除
+// productCatalog implements the gRPC ProductCatalogService
 type productCatalog struct {
 }
 
@@ -185,11 +185,10 @@ func (p *productCatalog) ListProducts(ctx context.Context, req *pb.Empty) (*pb.L
 	
 	time.Sleep(extraLatency)
 	
-	// PostgreSQLからプロダクトを取得
+	// Fetch all products from PostgreSQL (falls back to JSON catalog on error)
 	products, err := getProductsFromDB(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to get products from database, falling back to JSON")
-		// データベースからの取得に失敗した場合、JSONファイルから取得
 		return &pb.ListProductsResponse{Products: parseCatalog()}, nil
 	}
 	
@@ -201,7 +200,7 @@ func (p *productCatalog) ListProducts(ctx context.Context, req *pb.Empty) (*pb.L
 func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductRequest) (*pb.Product, error) {
 	startTime := time.Now()
 	
-	// GetProductのスパンを作成
+	// Start APM span for GetProduct
 	span, ctx := tracer.StartSpanFromContext(ctx, "productcatalogservice.GetProduct")
 	defer span.Finish()
 	
@@ -211,17 +210,17 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 	
 	time.Sleep(extraLatency)
 	
-	// 特定のプロダクトID（例： "2ZYFJ3GM2N"）がリクエストされた場合にのみスリープ
+	// CTF #18-21: Inject artificial 11s latency for product 2ZYFJ3GM2N to simulate a slow downstream query
+	// Expected: this product shows as the slowest in APM (GET /product/{id} endpoint)
 	if req.Id == "2ZYFJ3GM2N" {
 		span.SetTag("artificial_delay", "11s")
 		time.Sleep(11 * time.Second)
 	}
 	
-	// まずPostgreSQLからプロダクトを取得
+	// Fetch product from PostgreSQL; fall back to in-memory catalog if unavailable
 	product, err := getProductFromDB(ctx, req.Id)
 	if err != nil {
 		log.WithError(err).Warn("Failed to get product from database, falling back to JSON")
-		// データベースからの取得に失敗した場合、メモリ内検索
 		var found *pb.Product
 		for i := 0; i < len(parseCatalog()); i++ {
 			if req.Id == parseCatalog()[i].Id {
@@ -235,7 +234,7 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 			return nil, status.Errorf(codes.NotFound, "no product with ID %s", req.Id)
 		}
 		
-		// 元の形式でログ出力（JSONフォールバック）
+		// Log product info with trace context (JSON catalog fallback path)
 		duration := time.Since(startTime)
 		traceID := fmt.Sprintf("%v", span.Context().TraceID())
 		spanID := fmt.Sprintf("%v", span.Context().SpanID())
@@ -246,11 +245,7 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 		return found, nil
 	}
 	
-	// デバッグ：返却前に価格情報を確認
-	// log.Infof("DEBUG: Before returning - Product %s price: units=%d, nanos=%d", 
-	//	product.Id, product.PriceUsd.Units, product.PriceUsd.Nanos)
-	
-	// 元の形式でログ出力（データベースから取得）
+	// Log product info with trace context (database path)
 	duration := time.Since(startTime)
 	traceID := fmt.Sprintf("%v", span.Context().TraceID())
 	spanID := fmt.Sprintf("%v", span.Context().SpanID())
@@ -261,17 +256,17 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 	return product, nil
 }
 
-// 特定のプロダクトをデータベースから取得
+// getProductFromDB fetches a single product from PostgreSQL by product ID
 func getProductFromDB(ctx context.Context, productID string) (*pb.Product, error) {
 	if db == nil {
 		return nil, errors.New("database connection not available")
 	}
 	
-	// SQLクエリ実行のスパンを作成
+	// Start APM span for the single-product SQL query (CTF #9 — product access logs)
 	span, ctx := tracer.StartSpanFromContext(ctx, "db.query.get_product")
 	defer span.Finish()
 	
-	// スパンタグを設定
+	// Tag span with DB query metadata
 	span.SetTag("db.type", "postgresql")
 	span.SetTag("db.instance", "swagstoredb")
 	span.SetTag("db.table", "products")
@@ -315,11 +310,7 @@ func getProductFromDB(ctx context.Context, productID string) (*pb.Product, error
 		return nil, err
 	}
 	
-	// デバッグ：価格情報をログに出力
-	// log.Infof("DEBUG: Product %s price from DB: units=%d, nanos=%d", 
-	//	product.Id, priceUnits, priceNanos)
-	
-	// PriceUsdを安全に設定（currency_codeを含む）
+	// Populate PriceUsd with scanned values (all prices stored as USD)
 	product.PriceUsd = &pb.Money{
 		CurrencyCode: "USD",
 		Units:        priceUnits,
@@ -327,24 +318,20 @@ func getProductFromDB(ctx context.Context, productID string) (*pb.Product, error
 	}
 	product.Categories = categories
 	
-	// デバッグ：設定後の価格情報を確認
-	// log.Infof("DEBUG: Product %s final price: units=%d, nanos=%d", 
-	//	product.Id, product.PriceUsd.Units, product.PriceUsd.Nanos)
-	
 	return &product, nil
 }
 
-// 全プロダクトをデータベースから取得
+// getProductsFromDB fetches all products from PostgreSQL
 func getProductsFromDB(ctx context.Context) ([]*pb.Product, error) {
 	if db == nil {
 		return nil, errors.New("database connection not available")
 	}
 	
-	// SQLクエリ実行のスパンを作成
+	// Start APM span for the bulk product SELECT query
 	span, ctx := tracer.StartSpanFromContext(ctx, "db.query.get_products")
 	defer span.Finish()
 	
-	// スパンタグを設定
+	// Tag span with DB query metadata
 	span.SetTag("db.type", "postgresql")
 	span.SetTag("db.instance", "swagstoredb")
 	span.SetTag("db.table", "products")
@@ -391,9 +378,9 @@ func getProductsFromDB(ctx context.Context) ([]*pb.Product, error) {
 			return nil, err
 		}
 		
-		// PriceUsdを安全に設定（currency_codeを含む）
+		// Populate PriceUsd (all prices stored as USD)
 		product.PriceUsd = &pb.Money{
-			CurrencyCode: "USD",  // 通貨コードを設定
+			CurrencyCode: "USD",
 			Units:        priceUnits,
 			Nanos:        priceNanos,
 		}
@@ -458,12 +445,7 @@ func initProfiling(service, version string) {
 }
 
 func main() {
-	// デバッグ：環境変数の値を確認
-	// disableTracing := os.Getenv("DISABLE_TRACING")
-	// ddTraceEnabled := os.Getenv("DD_TRACE_ENABLED")
-	// log.Infof("DEBUG: DISABLE_TRACING=%s, DD_TRACE_ENABLED=%s", disableTracing, ddTraceEnabled)
-	
-	// APMトレーシングの初期化（常に有効）
+	// Initialize Datadog APM tracing (always enabled regardless of DISABLE_TRACING env var)
 	log.Info("Tracing enabled.")
 	tracer.Start(
 		tracer.WithService("productcatalogservice"),
