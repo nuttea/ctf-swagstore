@@ -266,7 +266,7 @@ func (cs *checkoutService) Watch(req *healthpb.HealthCheckRequest, ws healthpb.H
 }
 
 func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (*pb.PlaceOrderResponse, error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "PlaceOrder")  // コンテキストを更新
+	span, ctx := tracer.StartSpanFromContext(ctx, "PlaceOrder")  // Start APM span and propagate updated context
 	defer span.Finish()
 
 	traceID := span.Context().TraceID()

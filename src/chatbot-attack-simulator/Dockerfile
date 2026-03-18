@@ -2,19 +2,19 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# 依存関係をインストール
+# Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# アプリケーションをコピー
+# Copy application source
 COPY chatbot_attack_simulator.py .
 
-# 非rootユーザーで実行
+# Run as non-root user
 RUN useradd -m -u 1000 simulator && \
     chown -R simulator:simulator /app
 USER simulator
 
-# シミュレーターを実行
+# Run the simulator
 CMD ["python", "-u", "chatbot_attack_simulator.py"]
 
 

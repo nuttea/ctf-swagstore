@@ -42,7 +42,7 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.4.14 && \
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# プロジェクトファイルのコピーとプロトコルバッファの生成！
+# Copy project files and generate protocol buffers
 #RUN chmod +x genproto.sh && ./genproto.sh
 
 FROM base as without-grpc-health-probe-bin

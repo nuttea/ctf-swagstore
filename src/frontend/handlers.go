@@ -160,7 +160,7 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	
-	// デバッグ：productcatalogserviceから取得した価格データを確認
+	// Debug: verify raw price data received from productcatalogservice
 	// if p.GetPriceUsd() != nil {
 	//	log.Infof("DEBUG: Product %s received price from productcatalogservice: units=%d, nanos=%d", 
 	//		p.GetId(), p.GetPriceUsd().GetUnits(), p.GetPriceUsd().GetNanos())
@@ -186,7 +186,7 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	
-	// デバッグ：通貨変換後の価格データを確認
+	// Debug: verify price data after currency conversion
 	// if price != nil {
 	//	log.Infof("DEBUG: Product %s converted price: units=%d, nanos=%d", 
 	//		p.GetId(), price.GetUnits(), price.GetNanos())
@@ -194,7 +194,7 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 	//	log.Infof("DEBUG: Product %s converted price is NULL", p.GetId())
 	// }
 
-   	// 推奨商品を非同期で取得
+   	// Fetch recommendations asynchronously to avoid blocking the product page render
    	var recommendationsChan = make(chan []*pb.Product, 1)
    	go func() {
    		recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), []string{id})
@@ -206,7 +206,7 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
    		}
    	}()
 
-   	// 結果を待つ
+   	// Wait for recommendations goroutine to complete
    	recommendations := <-recommendationsChan
 
 	// ignores the error retrieving recommendations since it is not critical
@@ -239,7 +239,7 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// JSON形式で商品データを返すAPIエンドポイント
+// productAPIHandler returns product data as JSON — used for RUM-APM trace correlation (CTF #63)
 func (fe *frontendServer) productAPIHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	id := mux.Vars(r)["id"]
@@ -263,14 +263,14 @@ func (fe *frontendServer) productAPIHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// 推奨商品を取得
+	// Fetch recommendations to include in the JSON response
 	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), []string{id})
 	if err != nil {
 		log.WithField("error", err).Warn("failed to get product recommendations")
 		recommendations = []*pb.Product{}
 	}
 
-	// JSON形式でレスポンスを返す
+	// Build and return JSON response
 	response := map[string]interface{}{
 		"product": map[string]interface{}{
 			"item":  p,

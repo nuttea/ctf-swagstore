@@ -18,7 +18,7 @@ import (
 	"github.com/pgvector/pgvector-go"
 )
 
-// Product - 商品構造体
+// Product holds metadata for a single catalog item
 type Product struct {
 	ID          string
 	Name        string
@@ -33,7 +33,7 @@ func main() {
 
 	ctx := context.Background()
 
-	// 環境変数から設定を読み込む
+	// Load configuration from environment variables
 	postgresHost := getEnv("POSTGRES_HOST", "postgres")
 	postgresPort := getEnv("POSTGRES_PORT", "5432")
 	postgresUser := getEnv("POSTGRES_USER", "postgres")
@@ -49,14 +49,14 @@ func main() {
 	log.Printf("   Embedding Model: %s", embeddingModel)
 	log.Printf("   Dimensions: %s", embeddingDimensions)
 
-	// AWS Bedrockクライアントを初期化
+	// Initialize AWS Bedrock client
 	bedrockClient, err := initBedrock(ctx, awsRegion)
 	if err != nil {
 		log.Fatalf("❌ Failed to initialize Bedrock: %v", err)
 	}
 	log.Println("✅ Bedrock client initialized")
 
-	// PostgreSQLに接続
+	// Connect to PostgreSQL
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		postgresHost, postgresPort, postgresUser, postgresPassword, postgresDB)
 	db, err := sql.Open("postgres", connStr)
@@ -65,31 +65,31 @@ func main() {
 	}
 	defer db.Close()
 
-	// 接続を確認
+	// Verify database connection
 	if err := db.Ping(); err != nil {
 		log.Fatalf("❌ Failed to ping database: %v", err)
 	}
 	log.Println("✅ Connected to PostgreSQL")
 
-	// 商品データを取得
+	// Fetch all products from the database
 	products, err := fetchProducts(db)
 	if err != nil {
 		log.Fatalf("❌ Failed to fetch products: %v", err)
 	}
 	log.Printf("📦 Found %d products to process", len(products))
 
-	// 各商品の埋め込みを生成して保存
+	// Generate and store embedding vectors for each product
 	successCount := 0
 	errorCount := 0
 
 	for i, product := range products {
 		log.Printf("[%d/%d] Processing: %s", i+1, len(products), product.Name)
 
-		// テキストを構築
-		text := fmt.Sprintf("%s. %s. カテゴリー: %s. 価格: $%.2f",
+		// Build text representation for embedding (name + description + categories + price)
+		text := fmt.Sprintf("%s. %s. Category: %s. Price: $%.2f",
 			product.Name, product.Description, product.Categories, product.PriceUSD)
 
-		// 埋め込みベクトルを生成
+		// Generate embedding vector via Bedrock Titan
 		embedding, err := generateEmbedding(ctx, bedrockClient, text, embeddingModel, embeddingDimensions)
 		if err != nil {
 			log.Printf("   ⚠️  Failed to generate embedding: %v", err)
@@ -97,7 +97,7 @@ func main() {
 			continue
 		}
 
-		// データベースに保存
+		// Persist embedding to the database
 		err = saveEmbedding(db, product, embedding)
 		if err != nil {
 			log.Printf("   ⚠️  Failed to save embedding: %v", err)
@@ -108,7 +108,7 @@ func main() {
 		successCount++
 		log.Printf("   ✅ Embedded successfully (vector dim: %d)", len(embedding))
 
-		// レート制限を考慮して少し待機
+		// Brief pause to respect Bedrock rate limits
 		time.Sleep(200 * time.Millisecond)
 	}
 
@@ -123,7 +123,7 @@ func main() {
 	}
 }
 
-// initBedrock - Bedrockクライアントを初期化
+// initBedrock initializes the AWS Bedrock runtime client
 func initBedrock(ctx context.Context, region string) (*bedrockruntime.Client, error) {
 	awsAccessKey := os.Getenv("AWS_ACCESS_KEY_ID")
 	awsSecretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
@@ -153,7 +153,7 @@ func initBedrock(ctx context.Context, region string) (*bedrockruntime.Client, er
 	return bedrockruntime.NewFromConfig(cfg), nil
 }
 
-// fetchProducts - データベースから商品を取得
+// fetchProducts retrieves all products from the database
 func fetchProducts(db *sql.DB) ([]Product, error) {
 	query := `
 		SELECT 
@@ -187,7 +187,7 @@ func fetchProducts(db *sql.DB) ([]Product, error) {
 	return products, nil
 }
 
-// generateEmbedding - Bedrock Titan Embeddingsで埋め込みベクトルを生成
+// generateEmbedding calls Bedrock Titan Embeddings to produce a vector for the given text
 func generateEmbedding(ctx context.Context, client *bedrockruntime.Client, text, modelId, dimensions string) ([]float32, error) {
 	requestBody := map[string]interface{}{
 		"inputText":  text,
@@ -235,7 +235,7 @@ func generateEmbedding(ctx context.Context, client *bedrockruntime.Client, text,
 	return embedding, nil
 }
 
-// saveEmbedding - 埋め込みベクトルをデータベースに保存
+// saveEmbedding upserts the product embedding into the product_embeddings table
 func saveEmbedding(db *sql.DB, product Product, embedding []float32) error {
 	vec := pgvector.NewVector(embedding)
 
@@ -267,7 +267,7 @@ func saveEmbedding(db *sql.DB, product Product, embedding []float32) error {
 	return err
 }
 
-// getEnv - 環境変数を取得（デフォルト値あり）
+// getEnv returns the value of an environment variable, or a default if unset
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -275,7 +275,7 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-// parseDimensions - 次元数を整数に変換
+// parseDimensions converts the EMBEDDING_DIMENSIONS env string to an integer
 func parseDimensions(dimensions string) int {
 	dims := strings.TrimSpace(dimensions)
 	switch dims {

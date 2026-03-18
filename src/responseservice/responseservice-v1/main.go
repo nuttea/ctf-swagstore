@@ -19,10 +19,10 @@ func main() {
 	tracer.Start()
 	defer tracer.Stop()
 
-	// 環境変数からアプリバージョンを取得
+	// Read app version from environment variable (set by kubernetes manifest — CTF #39-40)
 	appVersion := os.Getenv("APP_VERSION")
 
-	// profiling 設定
+	// Start Datadog Profiler — CPU and heap profiles visible in Datadog Profiler (CTF #39-43)
 	err := profiler.Start(
 		profiler.WithService("responseservice"),
 		profiler.WithEnv("ctf"),
@@ -42,7 +42,7 @@ func main() {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
 
-		// おもたいロジック
+		// Run CPU-heavy logic — intentionally slow to generate profiler CPU data (CTF #41)
 		count := calcTargetLogic(appVersion)
 		fmt.Println("count: ", count)
 	})

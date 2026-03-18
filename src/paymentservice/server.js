@@ -50,8 +50,8 @@ class HipsterShopServer {
    */
   static ChargeServiceHandler(call, callback) {
     try {
-          const span = tracer.scope().active();  // 現在のアクティブなトレースを取得
-          const traceId = span ? span.context().toTraceId() : 'no-trace';  // トレースIDを取得
+          const span = tracer.scope().active();  // Get the currently active span
+          const traceId = span ? span.context().toTraceId() : 'no-trace';  // Extract trace ID for log correlation
       logger.info(`PaymentService#Charge invoked with request ${JSON.stringify(call.request)} Trace ID: ${traceId}`);
       const response = charge(call.request);
       callback(null, response);

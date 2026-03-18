@@ -20,12 +20,12 @@ RUN apk add build-base
 WORKDIR /src
 # restore dependencies
 COPY go.mod go.sum ./
-# go.sumファイルを削除して依存関係を最初から取得
+# Remove go.sum to force fresh dependency resolution
 RUN rm -f go.sum
 RUN go mod download
 COPY . .
 
-# 依存関係を実際の使用状況に合わせて整理
+# Tidy dependencies to match actual imports
 RUN go mod tidy
 
 # ARG BUILDOS 

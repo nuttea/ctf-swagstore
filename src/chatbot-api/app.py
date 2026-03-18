@@ -1,6 +1,5 @@
 """
-Swagstore Chatbot API with RAG
-Datadog LLM Observability対応
+Swagstore Chatbot API with RAG — Datadog LLM Observability enabled
 """
 import os
 import json
@@ -20,21 +19,21 @@ from ddtrace import tracer, patch_all
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs.decorators import llm, workflow, task, retrieval
 
-# Flask APMパッチを適用
+# Apply Flask APM patches
 patch_all()
 
-# ロギング設定
+# Logging configuration
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Flask アプリケーション
+# Flask application
 app = Flask(__name__)
 CORS(app)
 
-# 環境変数
+# Environment variables
 AWS_REGION = os.getenv('AWS_REGION', 'ap-northeast-1')
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
@@ -47,7 +46,7 @@ LLM_MODEL_ID = os.getenv('LLM_MODEL_ID', 'anthropic.claude-3-haiku-20240307-v1:0
 EMBEDDING_MODEL_ID = os.getenv('EMBEDDING_MODEL_ID', 'amazon.titan-embed-text-v2:0')
 RAG_TOP_K = int(os.getenv('RAG_TOP_K', '5'))
 
-# Datadog LLM Observability初期化
+# Initialize Datadog LLM Observability
 LLMObs.enable(
     ml_app="swagstore-chatbot",
     integrations_enabled=True,
@@ -67,7 +66,7 @@ logger.info(f"   Embedding Model: {EMBEDDING_MODEL_ID}")
 logger.info(f"   RAG Top-K: {RAG_TOP_K}")
 logger.info(f"   Datadog LLM Observability: Enabled")
 
-# AWS Bedrock クライアント
+# AWS Bedrock client
 bedrock_client = boto3.client(
     'bedrock-runtime',
     region_name=AWS_REGION,
@@ -76,7 +75,7 @@ bedrock_client = boto3.client(
 )
 
 def get_db_connection():
-    """PostgreSQL接続を取得"""
+    """Open and return a PostgreSQL connection with pgvector registered."""
     conn = psycopg2.connect(
         host=POSTGRES_HOST,
         port=POSTGRES_PORT,
@@ -90,13 +89,13 @@ def get_db_connection():
 
 def generate_embedding(text: str) -> List[float]:
     """
-    Titan Embeddings V2で埋め込みベクトルを生成
-    
+    Generate an embedding vector using Bedrock Titan Embeddings V2.
+
     Args:
-        text: 埋め込み対象のテキスト
-        
+        text: Text to embed
+
     Returns:
-        埋め込みベクトル（1024次元）
+        Embedding vector (1024 dimensions)
     """
     with tracer.trace('bedrock.embedding', service='chatbot-api') as span:
         span.set_tag('embedding.model', EMBEDDING_MODEL_ID)
@@ -127,14 +126,14 @@ def generate_embedding(text: str) -> List[float]:
 @retrieval(name="search_similar_products")
 def search_similar_products(query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
     """
-    ベクトル類似度検索で関連商品を取得（RAG Retrieval）
-    
+    Retrieve the most similar products using pgvector cosine similarity (RAG Retrieval).
+
     Args:
-        query_embedding: 質問の埋め込みベクトル
-        top_k: 取得する商品数
-        
+        query_embedding: Embedding vector of the user's question
+        top_k: Number of products to retrieve
+
     Returns:
-        類似商品のリスト
+        List of similar products with similarity scores
     """
     with tracer.trace('postgres.vector_search', service='chatbot-api') as span:
         span.set_tag('vector.top_k', top_k)
@@ -184,10 +183,10 @@ def search_similar_products(query_embedding: List[float], top_k: int = 5) -> Lis
 @llm(model_name=LLM_MODEL_ID, model_provider="bedrock", name="chat_completion")
 def call_claude_with_rag(user_message: str, system_prompt: str, request_body: dict, similar_products: List[Dict[str, Any]]) -> str:
     """
-    Bedrock Claude 3を呼び出してRAG応答を生成
-    LLMObsデコレーターでトレース
+    Call Bedrock Claude 3 to generate a RAG-grounded response.
+    Traced by the LLMObs decorator.
     """
-    # 入力データを記録
+    # Record input messages for LLM Observability
     LLMObs.annotate(
         input_data=[
             {"role": "system", "content": system_prompt},
@@ -214,12 +213,12 @@ def call_claude_with_rag(user_message: str, system_prompt: str, request_body: di
     result = json.loads(response['body'].read())
     ai_message = result['content'][0]['text']
     
-    # トークン数を取得
+    # Read token usage from the response
     input_tokens = result.get('usage', {}).get('input_tokens', 0)
     output_tokens = result.get('usage', {}).get('output_tokens', 0)
     total_tokens = input_tokens + output_tokens
     
-    # 出力データとメトリクスを記録
+    # Record output and token metrics for LLM Observability
     LLMObs.annotate(
         output_data=[{"role": "assistant", "content": ai_message}],
         metrics={
@@ -236,40 +235,40 @@ def call_claude_with_rag(user_message: str, system_prompt: str, request_body: di
 
 def generate_chat_response(user_message: str, similar_products: List[Dict[str, Any]]) -> str:
     """
-    Claude 3でチャット応答を生成（RAG）
-    
+    Generate a RAG-grounded chat response using Claude 3.
+
     Args:
-        user_message: ユーザーのメッセージ
-        similar_products: 類似商品リスト
-        
+        user_message: User's question
+        similar_products: List of similar products from vector search
+
     Returns:
-        AIの応答
+        AI response string
     """
-    # システムプロンプトを構築
-    system_prompt = """あなたはSwagstoreのAIカスタマーサポート担当です。
-お客様の質問に対して、提供された商品情報を基に正確で丁寧な回答をしてください。
+    # Build system prompt with grounding instructions
+    system_prompt = """You are an AI customer support assistant for Swagstore.
+Answer the customer's question accurately and politely based on the provided product information.
 
-重要な指示：
-- 提供された商品情報のみを使用して回答してください
-- 商品情報にない内容は推測せず、「確認が必要です」と伝えてください
-- 価格や商品名は正確に伝えてください
-- 商品を推薦する場合は、なぜその商品が適しているか説明してください
-- 日本語で簡潔に答えてください（3-4文程度）
-- 絵文字を適度に使って親しみやすく"""
+Important instructions:
+- Use only the provided product information to answer
+- If the information is not available, say "I need to verify that" instead of guessing
+- State prices and product names accurately
+- When recommending a product, explain why it suits the customer
+- Keep answers concise (3-4 sentences)
+- Use emojis occasionally to be friendly"""
 
-    # 商品コンテキストを追加
+    # Append product context to the system prompt
     if similar_products:
-        product_context = "\n\n【参考商品情報】\n"
+        product_context = "\n\n[Reference Product Information]\n"
         for i, p in enumerate(similar_products, 1):
             product_context += f"{i}. {p['product_name']}\n"
-            product_context += f"   説明: {p['description']}\n"
-            product_context += f"   価格: ${p['price_usd']:.2f}\n"
-            product_context += f"   カテゴリー: {p['categories']}\n"
-            product_context += f"   関連度: {p['similarity']:.0%}\n\n"
+            product_context += f"   Description: {p['description']}\n"
+            product_context += f"   Price: ${p['price_usd']:.2f}\n"
+            product_context += f"   Category: {p['categories']}\n"
+            product_context += f"   Relevance: {p['similarity']:.0%}\n\n"
         
         system_prompt += product_context
     
-    # Claude 3リクエストを構築
+    # Build Claude 3 request body
     request_body = {
         'anthropic_version': 'bedrock-2023-05-31',
         'max_tokens': 1000,
@@ -283,69 +282,69 @@ def generate_chat_response(user_message: str, similar_products: List[Dict[str, A
         ]
     }
     
-    # LLMObsデコレーター付き関数を呼び出す
+    # Invoke the LLMObs-decorated function
     return call_claude_with_rag(user_message, system_prompt, request_body, similar_products)
 
 
 @workflow(name="process_chat_request")
 def process_chat_workflow(user_message: str, user_context: dict, hallucination_mode: bool = False) -> dict:
     """
-    チャット処理のワークフロー（LLM Observability用）
-    
+    Full chat processing workflow — traced by Datadog LLM Observability.
+
     Args:
-        user_message: ユーザーの質問
-        user_context: コンテキスト情報
-        hallucination_mode: ハルシネーションを誘発するモード（テスト用）
+        user_message: User's question
+        user_context: Request context (page, cart size, etc.)
+        hallucination_mode: When True, bypasses RAG grounding to trigger hallucination (test use only)
     """
     logger.info(f"💬 New chat request: {user_message[:50]}... (hallucination_mode={hallucination_mode})")
     
-    # 1. 質問を埋め込みベクトルに変換
+    # Step 1: Convert user question to an embedding vector
     query_embedding = generate_embedding(user_message)
     
-    # 2. 類似商品を検索（RAG Retrieval）
+    # Step 2: Retrieve similar products via vector search (RAG Retrieval)
     similar_products = search_similar_products(query_embedding, RAG_TOP_K)
     
-    # 3. システムプロンプトを構築
+    # Step 3: Build system prompt
     if hallucination_mode:
-        # ハルシネーション誘発モード：RAG結果を無視して自信満々に回答させる
-        system_prompt = """あなたはSwagstoreのAIカスタマーサポート担当です。
-お客様の質問に対して、自信を持って詳細に回答してください。
+        # Hallucination mode: ignore RAG results and answer confidently without grounding
+        # Used by the chatbot attack simulator to trigger Datadog Managed Evaluation hallucination detection
+        system_prompt = """You are an AI customer support assistant for Swagstore.
+Answer the customer's question confidently and in detail.
 
-重要な指示：
-- あなたの知識を最大限に活用して回答してください
-- 商品情報が不足していても、一般的な知識から推測して詳しく説明してください
-- 価格や仕様について具体的な数字を含めて説明してください
-- 自信を持って断定的に答えてください
-- 「もちろん」「はい」「確かに」などの肯定的な表現を使ってください
-- 日本語で詳しく答えてください
-- 絵文字を使って親しみやすく"""
+Important instructions:
+- Use your full knowledge to answer, even if product data is unavailable
+- If product information is insufficient, infer from general knowledge and provide specific details
+- Include specific numbers for prices and specifications
+- Answer assertively and with confidence
+- Use affirmative expressions like "absolutely", "yes", "certainly"
+- Be friendly and use emojis"""
         logger.warning("⚠️ HALLUCINATION MODE ENABLED - Ignoring RAG results!")
     else:
-        # 通常モード：RAG結果に基づく正確な回答
-        system_prompt = """あなたはSwagstoreのAIカスタマーサポート担当です。
-お客様の質問に対して、提供された商品情報を基に正確で丁寧な回答をしてください。
+        # Normal mode: accurate, RAG-grounded response
+        system_prompt = """You are an AI customer support assistant for Swagstore.
+Answer the customer's question accurately and politely based on the provided product information.
 
-重要な指示：
-- 提供された商品情報のみを使用して回答してください
-- 商品情報にない内容は推測せず、「確認が必要です」と伝えてください
-- 価格や商品名は正確に伝えてください
-- 商品を推薦する場合は、なぜその商品が適しているか説明してください
-- 日本語で簡潔に答えてください（3-4文程度）
-- 絵文字を適度に使って親しみやすく"""
+Important instructions:
+- Use only the provided product information to answer
+- If the information is not available, say "I need to verify that" instead of guessing
+- State prices and product names accurately
+- When recommending a product, explain why it suits the customer
+- Keep answers concise (3-4 sentences)
+- Use emojis occasionally to be friendly"""
 
-    # 商品コンテキストを追加
+    # Append product context to the system prompt
     if similar_products:
-        product_context = "\n\n【参考商品情報】\n"
+        product_context = "\n\n[Reference Product Information]\n"
         for i, p in enumerate(similar_products, 1):
             product_context += f"{i}. {p['product_name']}\n"
-            product_context += f"   説明: {p['description']}\n"
-            product_context += f"   価格: ${p['price_usd']:.2f}\n"
-            product_context += f"   カテゴリー: {p['categories']}\n"
-            product_context += f"   関連度: {p['similarity']:.0%}\n\n"
+            product_context += f"   Description: {p['description']}\n"
+            product_context += f"   Price: ${p['price_usd']:.2f}\n"
+            product_context += f"   Category: {p['categories']}\n"
+            product_context += f"   Relevance: {p['similarity']:.0%}\n\n"
         
         system_prompt += product_context
     
-    # 4. Claude 3リクエストを構築
+    # Step 4: Build Claude 3 request body
     request_body = {
         'anthropic_version': 'bedrock-2023-05-31',
         'max_tokens': 1000,
@@ -359,24 +358,24 @@ def process_chat_workflow(user_message: str, user_context: dict, hallucination_m
         ]
     }
     
-    # 5. Claude 3で応答を生成（LLM呼び出し）
+    # Step 5: Generate AI response via Claude 3 (LLM call)
     ai_response = call_claude_with_rag(user_message, system_prompt, request_body, similar_products)
     
-    # 6. ハルシネーション検出のためのリファレンスドキュメントを構築
-    # Datadog Managed Evaluationのハルシネーション検出に使用される
+    # Step 6: Build reference documents for hallucination detection
+    # Used by Datadog Managed Evaluation to compare the response against known product facts
     reference_documents = []
     if similar_products:
         for p in similar_products:
-            # 各商品をリファレンスドキュメントとして追加
+            # Add each retrieved product as a reference document
             reference_doc = (
-                f"商品名: {p['product_name']}\n"
-                f"説明: {p['description']}\n"
-                f"価格: ${p['price_usd']:.2f}\n"
-                f"カテゴリー: {p['categories']}"
+                f"Product: {p['product_name']}\n"
+                f"Description: {p['description']}\n"
+                f"Price: ${p['price_usd']:.2f}\n"
+                f"Category: {p['categories']}"
             )
             reference_documents.append(reference_doc)
     
-    # LLMObsにリファレンスドキュメントを記録（ハルシネーション検出用）
+    # Submit reference documents to LLMObs for hallucination detection scoring
     if reference_documents:
         LLMObs.annotate(
             metadata={
@@ -386,7 +385,7 @@ def process_chat_workflow(user_message: str, user_context: dict, hallucination_m
         )
         logger.info(f"📚 Added {len(reference_documents)} reference documents for hallucination detection")
     
-    # レスポンス
+    # Build final response payload
     response_data = {
         'success': True,
         'message': ai_response,
@@ -408,24 +407,22 @@ def process_chat_workflow(user_message: str, user_context: dict, hallucination_m
 
 def evaluate_response_inline(user_message: str, ai_response: str, similar_products: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    チャットボット応答の品質を評価（インライン版 - span_id不要）
-    
-    評価基準:
-    1. Response Quality: 応答の長さと完全性
-    2. RAG Relevance: 検索された商品の関連度
-    3. Helpfulness: 応答が質問に答えているか（ヒューリスティック）
-    4. Sentiment: 応答のトーン（ポジティブ/ネガティブ/ニュートラル）
-    5. Failed Answer: 応答が質問に答えられていないケース
-    6. Language Mismatch: 質問と応答の言語不一致
-    7. Hallucination: 幻覚検出
+    Evaluate chatbot response quality (inline version — no span_id required).
+
+    Evaluation criteria:
+    1. Response Quality: response length and completeness
+    2. RAG Relevance: average similarity score of retrieved products
+    3. Helpfulness: keyword overlap between question and response (heuristic)
+    4. Sentiment: tone of the response (positive / negative / neutral)
+    5. Failed Answer: response indicates it could not answer
+    6. Language Match: question and response language consistency
+    7. Hallucination: confident response with low RAG relevance
     """
     return _evaluate_response_logic(user_message, ai_response, similar_products)
 
 
 def evaluate_response(user_message: str, ai_response: str, similar_products: List[Dict[str, Any]], span_id: str, trace_id: str) -> Dict[str, Any]:
-    """
-    チャットボット応答の品質を評価（後でDatadogに送信する用）
-    """
+    """Evaluate chatbot response quality and return results for later Datadog submission."""
     evaluations = _evaluate_response_logic(user_message, ai_response, similar_products)
     logger.info(f"📊 Evaluations with span context: span_id={span_id}, trace_id={trace_id}")
     return evaluations
@@ -433,24 +430,24 @@ def evaluate_response(user_message: str, ai_response: str, similar_products: Lis
 
 def _evaluate_response_logic(user_message: str, ai_response: str, similar_products: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    チャットボット応答の品質を評価（共通ロジック）
-    
-    評価基準:
-    1. Response Quality: 応答の長さと完全性
-    2. RAG Relevance: 検索された商品の関連度
-    3. Helpfulness: 応答が質問に答えているか（ヒューリスティック）
-    4. Sentiment: 応答のトーン（ポジティブ/ネガティブ/ニュートラル）
-    5. Failed Answer: 応答が質問に答えられていないケース
-    6. Language Mismatch: 質問と応答の言語不一致
-    7. Hallucination: 幻覚検出
+    Shared evaluation logic for chatbot response quality.
+
+    Evaluation criteria:
+    1. Response Quality: response length and completeness
+    2. RAG Relevance: average similarity score of retrieved products
+    3. Helpfulness: keyword overlap between question and response (heuristic)
+    4. Sentiment: tone of the response (positive / negative / neutral)
+    5. Failed Answer: response indicates it could not answer
+    6. Language Match: question and response language consistency
+    7. Hallucination: confident response with low RAG relevance
     """
     evaluations = {}
     
-    # 応答を小文字に変換（評価用）
+    # Normalize to lowercase for evaluation
     response_lower = ai_response.lower()
     question_lower = user_message.lower()
     
-    # 1. Response Quality評価（応答の長さと構造）
+    # 1. Response Quality: score based on response length
     response_length = len(ai_response)
     if response_length < 20:
         quality_score = 0.3
@@ -469,7 +466,7 @@ def _evaluate_response_logic(user_message: str, ai_response: str, similar_produc
         'score_value': quality_score
     }
     
-    # 2. RAG Relevance評価（商品の平均類似度）
+    # 2. RAG Relevance: average similarity of retrieved products
     if similar_products:
         avg_similarity = sum(p['similarity'] for p in similar_products) / len(similar_products)
         
@@ -490,8 +487,7 @@ def _evaluate_response_logic(user_message: str, ai_response: str, similar_produc
             'score_value': rag_score
         }
     
-    # 3. Helpfulness評価（簡易的なキーワードマッチング）
-    # 質問に関連するキーワードが応答に含まれているか
+    # 3. Helpfulness: keyword overlap between question and response (heuristic)
     question_words = set(user_message.lower().split())
     response_words = set(ai_response.lower().split())
     overlap = len(question_words & response_words)
@@ -514,10 +510,9 @@ def _evaluate_response_logic(user_message: str, ai_response: str, similar_produc
         'score_value': helpfulness_score
     }
     
-    # 4. Sentiment評価（応答のトーン）
-    # ポジティブ・ネガティブキーワードベースの簡易的な感情分析
-    positive_keywords = ['おすすめ', 'おすすめします', 'ぴったり', '最適', '良い', 'いい', '素敵', '人気', 'お得', '👍', '😊', '🎉', '✨']
-    negative_keywords = ['申し訳', 'すみません', '残念', 'ごめん', '確認が必要', 'わかりません', '不明', 'エラー', '😢', '😞']
+    # 4. Sentiment: simple keyword-based positive/negative tone detection
+    positive_keywords = ['recommend', 'perfect', 'great', 'excellent', 'ideal', 'popular', 'available', '👍', '😊', '🎉', '✨']
+    negative_keywords = ['sorry', 'apologize', 'unfortunately', 'cannot', 'unable', 'unavailable', 'error', '😢', '😞']
     
     positive_count = sum(1 for keyword in positive_keywords if keyword in response_lower)
     negative_count = sum(1 for keyword in negative_keywords if keyword in response_lower)
@@ -539,16 +534,15 @@ def _evaluate_response_logic(user_message: str, ai_response: str, similar_produc
         'score_value': sentiment_score
     }
     
-    # 5. Failed Answer評価（応答が質問に答えられていない）
-    # 失敗を示すフレーズの検出
+    # 5. Failed Answer: detect phrases indicating the response could not answer
     failed_phrases = [
-        '申し訳ございません',
-        'わかりません',
-        '確認が必要です',
-        '情報がありません',
-        'お答えできません',
-        '不明です',
-        'エラーが発生'
+        'i need to verify',
+        'i cannot confirm',
+        'not sure',
+        'information is not available',
+        'cannot answer',
+        'unclear',
+        'an error occurred'
     ]
     
     is_failed = any(phrase in ai_response for phrase in failed_phrases)
@@ -567,11 +561,10 @@ def _evaluate_response_logic(user_message: str, ai_response: str, similar_produc
         'score_value': failed_score
     }
     
-    # 6. Language Mismatch評価（質問と応答の言語不一致）
-    # 簡易的な言語検出（日本語・英語のみ）
+    # 6. Language Match: simple Japanese/English language detection to check consistency
     def detect_language(text: str) -> str:
-        """簡易的な言語検出"""
-        # 日本語文字（ひらがな、カタカナ、漢字）の割合
+        """Simple language detector (Japanese vs English)."""
+        # Ratio of Japanese characters (hiragana, katakana, kanji) in the text
         japanese_chars = sum(1 for char in text if '\u3040' <= char <= '\u30ff' or '\u4e00' <= char <= '\u9fff')
         total_chars = len(text.replace(' ', ''))
         
@@ -606,27 +599,26 @@ def _evaluate_response_logic(user_message: str, ai_response: str, similar_produc
         }
     }
     
-    # 7. Hallucination評価（幻覚検出）
-    # RAG関連度が低いのに自信満々な応答をしている場合
+    # 7. Hallucination: flag responses that are confident but have low RAG relevance
     rag_score = evaluations.get('rag_relevance', {}).get('value', 1.0)
     
-    # ハルシネーションの兆候を示すフレーズ
+    # Phrases that indicate high confidence in the response
     confident_phrases = [
-        'もちろん', 'はい', '確かに', 'その通り', '間違いなく',
-        'absolutely', 'definitely', 'certainly', 'of course', 'yes'
+        'absolutely', 'definitely', 'certainly', 'of course', 'yes',
+        'correct', 'indeed', 'sure', 'exactly'
     ]
     
-    # 不確実性を示すフレーズ（ハルシネーションではない）
+    # Phrases that indicate appropriate uncertainty (not hallucination)
     uncertain_phrases = [
-        '確認が必要', 'わかりません', '情報がありません', 
-        'お答えできません', '申し訳ございません',
-        'not sure', 'unclear', 'cannot confirm'
+        'not sure', 'unclear', 'cannot confirm',
+        'i need to verify', 'information is not available',
+        'cannot answer', 'apologize'
     ]
     
     has_confident_phrase = any(phrase in response_lower for phrase in confident_phrases)
     has_uncertain_phrase = any(phrase in response_lower for phrase in uncertain_phrases)
     
-    # ハルシネーションの可能性：RAG関連度が低い（<0.5）のに自信満々（confident phrases使用）
+    # Likely hallucination: low RAG relevance (<0.5) but response uses confident language
     if rag_score < 0.5 and has_confident_phrase and not has_uncertain_phrase:
         hallucination_label = 'likely_hallucination'
         hallucination_score = 0.0
@@ -651,8 +643,8 @@ def _evaluate_response_logic(user_message: str, ai_response: str, similar_produc
 
 def submit_evaluations_to_datadog(span_id: str, trace_id: str, evaluations: Dict[str, Any]):
     """
-    評価結果をDatadog LLM ObservabilityにSubmit（REST API直接呼び出し）
-    DD_API_KEYを使用してDatadog APIに送信
+    Submit evaluation results to Datadog LLM Observability via direct REST API call.
+    Uses DD_API_KEY for authentication.
     """
     try:
         dd_api_key = os.getenv('DD_API_KEY')
@@ -671,14 +663,14 @@ def submit_evaluations_to_datadog(span_id: str, trace_id: str, evaluations: Dict
             'Content-Type': 'application/json'
         }
         
-        # 全評価を1つのリクエストにまとめる
+        # Batch all evaluations into a single API request
         metrics = []
         for eval_name, eval_data in evaluations.items():
-            # metric_typeに応じてvalueを設定
+            # categorical metrics use a string label; score metrics use a numeric value
             if eval_data['metric_type'] == 'categorical':
-                metric_value = eval_data['label']  # categorical: 文字列
+                metric_value = eval_data['label']
             else:
-                metric_value = eval_data['score_value']  # score: 数値
+                metric_value = eval_data['score_value']
             
             metrics.append({
                 "span_id": span_id,
@@ -712,11 +704,10 @@ def submit_evaluations_to_datadog(span_id: str, trace_id: str, evaluations: Dict
 @app.route('/health', methods=['GET'])
 def health_check():
     """
-    ヘルスチェックエンドポイント
-    
-    注意: KubernetesのProbeはtcpSocketを使用しているため、
-    このエンドポイントは通常呼び出されません。
-    手動確認用に残しています。
+    Health check endpoint.
+
+    Note: The Kubernetes probe uses tcpSocket so this endpoint is rarely called directly.
+    Kept for manual verification purposes.
     """
     return jsonify({
         'status': 'healthy',
@@ -728,28 +719,28 @@ def health_check():
 @app.route('/api/chat', methods=['POST'])
 def chat():
     """
-    チャットAPIエンドポイント
-    
+    Chat API endpoint.
+
     Request:
         {
-            "message": "ユーザーのメッセージ",
+            "message": "User's message",
             "context": {
                 "page": "/product/123",
                 "cartSize": "2"
             },
-            "hallucination_mode": false  // オプション：ハルシネーション誘発モード
+            "hallucination_mode": false  // Optional: enable hallucination test mode
         }
-    
+
     Response:
         {
             "success": true,
-            "message": "AIの応答",
+            "message": "AI response",
             "products": [...],
             "metadata": {...}
         }
     """
     try:
-        # リクエストデータを取得
+        # Parse request data
         data = request.get_json()
         user_message = data.get('message', '')
         user_context = data.get('context', {})
@@ -758,10 +749,10 @@ def chat():
         if not user_message:
             return jsonify({
                 'success': False,
-                'message': 'メッセージが空です'
+                'message': 'Message cannot be empty.'
             }), 400
         
-        # ワークフローを実行
+        # Run the full chat workflow
         response_data = process_chat_workflow(user_message, user_context, hallucination_mode)
         
         return jsonify(response_data)
@@ -771,7 +762,7 @@ def chat():
         
         return jsonify({
             'success': False,
-            'message': '申し訳ございません。エラーが発生しました。',
+            'message': 'Sorry, an error occurred. Please try again.',
             'error': str(e)
         }), 500
 
