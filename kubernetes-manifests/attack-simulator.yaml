@@ -25,9 +25,9 @@ spec:
         - name: FRONTEND_URL
           value: "http://frontend"
         - name: ATTACK_INTERVAL
-          value: "300"  # 2分ごとに通常攻撃を実行
+          value: "300"  # Run regular attack suite every 5 minutes
         - name: LATENCY_ATTACK_INTERVAL
-          value: "3600"  # 1時間ごとにレイテンシー悪化攻撃を実行
+          value: "3600"  # Run latency degradation attack every 1 hour
         resources:
           requests:
             memory: "256Mi"

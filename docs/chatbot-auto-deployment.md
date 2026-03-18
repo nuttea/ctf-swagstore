@@ -1,39 +1,39 @@
-# 🤖 チャットボット自動デプロイ構成
+# 🤖 Chatbot Auto-Deployment Configuration
 
-PostgreSQLデプロイ時に自動的にRAG基盤がセットアップされます。
+The RAG foundation is set up automatically when PostgreSQL is deployed.
 
-## 🚀 自動実行フロー
+## 🚀 Automated Execution Flow
 
 ```
-1. skaffold run 実行
+1. skaffold run
    ↓
-2. PostgreSQL Pod起動
-   ├─ pgvector/pgvector:pg15イメージ使用
-   ├─ init-db.sh実行（自動）
-   │  ├─ swagstoredb作成
-   │  ├─ pgvector拡張インストール ← ここで自動！
-   │  ├─ product_embeddingsテーブル作成 ← ここで自動！
-   │  └─ HNSWインデックス作成 ← ここで自動！
+2. PostgreSQL Pod starts
+   ├─ Uses pgvector/pgvector:pg15 image
+   ├─ init-db.sh runs automatically
+   │  ├─ Create swagstoredb
+   │  ├─ Install pgvector extension  ← automatic!
+   │  ├─ Create product_embeddings table  ← automatic!
+   │  └─ Create HNSW index  ← automatic!
    └─ PostgreSQL Ready
    ↓
-3. chatbot-embed-products Job実行（PostSync）
-   ├─ PostgreSQL準備完了を待機
-   ├─ AWS Bedrock Titan Embeddingsで商品ベクトル化
-   └─ product_embeddingsテーブルに保存
+3. chatbot-embed-products Job runs (PostSync)
+   ├─ Wait for PostgreSQL to be ready
+   ├─ Vectorise products using AWS Bedrock Titan Embeddings
+   └─ Save results to product_embeddings table
    ↓
-4. RAG基盤完成！🎉
+4. RAG foundation ready! 🎉
 ```
 
-## 📦 含まれるコンポーネント
+## 📦 Components
 
-### 1. PostgreSQL起動時（自動）
-**ファイル**: `kubernetes-manifests/postgres.yaml`
+### 1. PostgreSQL startup (automatic)
+**File**: `kubernetes-manifests/postgres.yaml`
 
 ```yaml
 configMap:
   data:
     init-db.sh: |
-      # ... 既存のDB初期化 ...
+      # ... existing DB init ...
       
       # ===== Chatbot RAG Setup =====
       CREATE EXTENSION IF NOT EXISTS vector;
@@ -57,63 +57,63 @@ configMap:
       # ===== End Chatbot RAG Setup =====
 ```
 
-### 2. 商品埋め込み生成（自動）
-**ファイル**: `kubernetes-manifests/chatbot-setup-job.yaml`
+### 2. Product embedding generation (automatic)
+**File**: `kubernetes-manifests/chatbot-setup-job.yaml`
 
-- **Secret**: AWS Bedrock認証情報
-- **Job**: chatbot-embed-products（PostSyncフック）
+- **Secret**: AWS Bedrock credentials
+- **Job**: chatbot-embed-products (PostSync hook)
 - **Image**: koheisato353/chatbot-embedder:v1
 
-## 🎯 デプロイ方法
+## 🎯 Deployment
 
-### 通常のデプロイ（全自動）
+### Normal deployment (fully automatic)
 
 ```bash
-# これだけで全部自動実行！
+# This single command handles everything
 skaffold run
 ```
 
-**実行内容**:
-1. ✅ PostgreSQL起動 → pgvector自動セットアップ
-2. ✅ chatbot-embedder Job自動実行 → 商品埋め込み生成
-3. ✅ RAG基盤完成
+**What happens**:
+1. ✅ PostgreSQL starts → pgvector set up automatically
+2. ✅ chatbot-embedder Job runs → product embeddings generated
+3. ✅ RAG foundation ready
 
-### 個別に再実行する場合
+### Re-run individual steps
 
-#### PostgreSQLの再初期化
+#### Re-initialise PostgreSQL
 ```bash
-# PVCを削除して再作成
+# Delete and recreate PVC
 kubectl scale deployment postgres --replicas=0
 kubectl delete pvc postgres-pvc
 kubectl apply -f kubernetes-manifests/postgres.yaml
 kubectl scale deployment postgres --replicas=1
 ```
 
-#### 商品埋め込みのみ再生成
+#### Regenerate product embeddings only
 ```bash
-# Jobを削除して再実行
+# Delete and re-run the Job
 kubectl delete job chatbot-embed-products
 kubectl apply -f kubernetes-manifests/chatbot-setup-job.yaml
 ```
 
-## 📊 実行確認
+## 📊 Verification
 
-### PostgreSQL起動ログを確認
+### Check PostgreSQL startup logs
 ```bash
 kubectl logs deployment/postgres -c init-db
 
-# 期待される出力:
+# Expected output:
 # ✅ pgvector setup completed
 # CREATE EXTENSION
 # CREATE TABLE
 # CREATE INDEX
 ```
 
-### 商品埋め込みJobを確認
+### Check product embedding Job
 ```bash
 kubectl logs job/chatbot-embed-products
 
-# 期待される出力:
+# Expected output:
 # 🚀 Starting product embeddings generation...
 # ✅ Bedrock client initialized
 # ✅ Connected to PostgreSQL
@@ -125,16 +125,16 @@ kubectl logs job/chatbot-embed-products
 #    ✅ Success: 9 products
 ```
 
-### データを確認
+### Verify data
 ```bash
 kubectl exec deployment/postgres -- env PGPASSWORD=password psql -U postgres -d swagstoredb -c \
   "SELECT product_id, product_name, price_usd FROM product_embeddings ORDER BY product_id;"
 ```
 
-## 🔧 設定変更
+## 🔧 Configuration
 
-### AWS認証情報を変更
-`kubernetes-manifests/chatbot-setup-job.yaml`を編集：
+### Change AWS credentials
+Edit `kubernetes-manifests/chatbot-setup-job.yaml`:
 
 ```yaml
 apiVersion: v1
@@ -143,61 +143,59 @@ metadata:
   name: aws-bedrock-credentials
 type: Opaque
 stringData:
-  AWS_REGION: "ap-northeast-1"          # ← リージョン
-  AWS_ACCESS_KEY_ID: "your-access-key"  # ← アクセスキー
-  AWS_SECRET_ACCESS_KEY: "your-secret"  # ← シークレット
+  AWS_REGION: "ap-northeast-1"          # ← region
+  AWS_ACCESS_KEY_ID: "your-access-key"  # ← access key
+  AWS_SECRET_ACCESS_KEY: "your-secret"  # ← secret key
 ```
 
-### 埋め込みモデルを変更
-`kubernetes-manifests/chatbot-setup-job.yaml`のJob環境変数を編集：
+### Change embedding model
+Edit the Job environment variables in `kubernetes-manifests/chatbot-setup-job.yaml`:
 
 ```yaml
 env:
 - name: BEDROCK_EMBEDDING_MODEL
-  value: "amazon.titan-embed-text-v2:0"  # ← モデルID
+  value: "amazon.titan-embed-text-v2:0"  # ← model ID
 - name: EMBEDDING_DIMENSIONS
-  value: "1024"  # ← 次元数（256, 512, 1024, 1536）
+  value: "1024"  # ← dimensions (256, 512, 1024, 1536)
 ```
 
-## 🐛 トラブルシューティング
+## 🐛 Troubleshooting
 
-### pgvector拡張がインストールされない
+### pgvector extension not installed
 
-**原因**: PostgreSQLイメージが`pgvector/pgvector:pg15`ではない
+**Cause**: PostgreSQL image is not `pgvector/pgvector:pg15`.
 
-**確認**:
+**Check**:
 ```bash
 kubectl get pod -l app=postgres -o jsonpath='{.items[0].spec.containers[0].image}'
 ```
 
-**修正**:
+**Fix**:
 ```bash
-# postgres.yamlを確認
+# Verify the image in postgres.yaml
 grep "image:" kubernetes-manifests/postgres.yaml
-# 両方とも pgvector/pgvector:pg15 であることを確認
+# Both entries should be pgvector/pgvector:pg15
 ```
 
-### 商品埋め込みJobが失敗
+### Product embedding Job fails
 
-**原因1**: PostgreSQLがまだ起動していない
+**Cause 1**: PostgreSQL is not yet ready.
 ```bash
 kubectl logs job/chatbot-embed-products
-
-# 解決: Jobが自動的にリトライします（backoffLimit: 2）
+# The Job will retry automatically (backoffLimit: 2)
 ```
 
-**原因2**: AWS認証情報が間違っている
+**Cause 2**: Invalid AWS credentials.
 ```bash
 kubectl logs job/chatbot-embed-products | grep -i error
-
-# 解決: chatbot-setup-job.yamlのSecretを修正
+# Fix: update the Secret in chatbot-setup-job.yaml
 ```
 
-### 既存のデータがある場合
+### Existing data
 
-product_embeddingsテーブルは`CREATE TABLE IF NOT EXISTS`なので、既存データは保持されます。
+The `product_embeddings` table uses `CREATE TABLE IF NOT EXISTS`, so existing data is preserved.
 
-再生成する場合:
+To regenerate from scratch:
 ```bash
 kubectl exec deployment/postgres -- env PGPASSWORD=password psql -U postgres -d swagstoredb -c \
   "TRUNCATE TABLE product_embeddings;"
@@ -206,55 +204,49 @@ kubectl delete job chatbot-embed-products
 kubectl apply -f kubernetes-manifests/chatbot-setup-job.yaml
 ```
 
-## 💰 コスト
+## 💰 Cost
 
-### 初回デプロイ（9商品）
-- 埋め込み生成: 約$0.0005（0.05円）
+### Initial deployment (9 products)
+- Embedding generation: ~$0.0005
 
-### 毎日再デプロイする場合
-- 月間: 約$0.015（1.5円）
+### Daily redeployment
+- Monthly: ~$0.015
 
-## 🎯 利点
+## 🎯 Benefits
 
-✅ **完全自動化**: `skaffold run`だけで全て完了
-✅ **冪等性**: 何度実行しても安全
-✅ **障害回復**: PostgreSQL再起動時も自動再セットアップ
-✅ **メンテナンス不要**: 手動操作ゼロ
-✅ **CI/CD対応**: パイプラインに組み込み可能
+✅ **Fully automated**: `skaffold run` handles everything
+✅ **Idempotent**: safe to run multiple times
+✅ **Fault-tolerant**: auto-recovers after PostgreSQL restart
+✅ **Zero maintenance**: no manual steps required
+✅ **CI/CD compatible**: can be integrated into pipelines
 
-## 📝 ファイル構成
+## 📝 File Structure
 
 ```
 kubernetes-manifests/
-├── postgres.yaml                    # ← pgvector自動セットアップ組込済
-└── chatbot-setup-job.yaml          # ← 商品埋め込み自動生成Job
+├── postgres.yaml                    # ← includes pgvector auto-setup
+└── chatbot-setup-job.yaml          # ← product embedding auto-generation Job
 
 src/
-└── chatbot-embedder/               # ← 埋め込み生成ツール
+└── chatbot-embedder/               # ← embedding generation tool
     ├── main.go
     ├── Dockerfile
     └── go.mod
 
-skaffold.yaml                       # ← 自動デプロイ設定
+skaffold.yaml                       # ← auto-deployment configuration
 ```
 
-## 🔗 関連ドキュメント
+## 🔗 Related Documentation
 
-- [README-CHATBOT.md](../README-CHATBOT.md) - チャットボット全体概要
-- [bedrock-setup-guide.md](./bedrock-setup-guide.md) - AWS Bedrockセットアップ
-- [chatbot-deployment-guide.md](./chatbot-deployment-guide.md) - 手動デプロイ手順
+- [bedrock-setup-guide.md](./bedrock-setup-guide.md) — AWS Bedrock setup
+- [chatbot-deployment-guide.md](./chatbot-deployment-guide.md) — Manual deployment steps
+- [chatbot-llm-observability.md](./chatbot-llm-observability.md) — LLM Observability
 
-## ✨ まとめ
+## ✨ Summary
 
-PostgreSQLデプロイ時に自動的に：
-1. ✅ pgvector拡張がインストールされる
-2. ✅ product_embeddingsテーブルが作成される
-3. ✅ 商品の埋め込みベクトルが生成される
+When PostgreSQL is deployed, the following happen automatically:
+1. ✅ pgvector extension is installed
+2. ✅ product_embeddings table is created
+3. ✅ Product embedding vectors are generated
 
-**結果**: `skaffold run`一発でRAG基盤が完成！🎉
-
-
-
-
-
-
+**Result**: RAG foundation is fully ready after a single `skaffold run`! 🎉

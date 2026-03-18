@@ -1,9 +1,9 @@
--- pgvector拡張を有効化してRAG用のテーブルを作成
+-- Enable pgvector extension and create tables for RAG retrieval
 
--- pgvector拡張をインストール
+-- Install pgvector extension
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- 商品埋め込みテーブルを作成
+-- Create product embeddings table
 CREATE TABLE IF NOT EXISTS product_embeddings (
     id SERIAL PRIMARY KEY,
     product_id VARCHAR(50) NOT NULL,
@@ -12,21 +12,21 @@ CREATE TABLE IF NOT EXISTS product_embeddings (
     price_usd DECIMAL(10, 2),
     categories TEXT,
     picture VARCHAR(500),
-    embedding vector(1024),  -- Titan Embeddings V2 (1024次元)
+    embedding vector(1024),  -- Titan Embeddings V2 (1024 dimensions)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(product_id)
 );
 
--- ベクトル検索用のインデックスを作成（HNSW - 高速検索）
+-- HNSW index for fast cosine-similarity vector search
 CREATE INDEX IF NOT EXISTS product_embeddings_vector_idx 
 ON product_embeddings USING hnsw (embedding vector_cosine_ops);
 
--- 商品IDでの検索用インデックス
+-- B-tree index for product_id lookups
 CREATE INDEX IF NOT EXISTS product_embeddings_product_id_idx 
 ON product_embeddings(product_id);
 
--- 更新日時の自動更新トリガー
+-- Trigger to auto-update updated_at on row changes
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -40,22 +40,16 @@ BEFORE UPDATE ON product_embeddings
 FOR EACH ROW 
 EXECUTE FUNCTION update_updated_at_column();
 
--- 既存の商品データを確認
+-- Verify existing product data
 SELECT 
     COUNT(*) as total_products,
     MIN(price_usd_units + price_usd_nanos/1000000000.0) as min_price,
     MAX(price_usd_units + price_usd_nanos/1000000000.0) as max_price
 FROM products;
 
--- セットアップ完了メッセージ
+-- Setup complete
 DO $$
 BEGIN
     RAISE NOTICE 'pgvector setup completed successfully!';
     RAISE NOTICE 'Run the Go application to populate product embeddings.';
 END $$;
-
-
-
-
-
-

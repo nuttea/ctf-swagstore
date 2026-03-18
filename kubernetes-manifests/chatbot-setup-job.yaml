@@ -1,6 +1,6 @@
-# チャットボット商品埋め込み生成Job
-# PostgreSQL起動後に自動実行されます（pgvectorはpostgres起動時に自動セットアップ）
-# AWS認証情報Secret
+# Chatbot product embedding generation Job
+# Runs automatically after PostgreSQL starts (pgvector is set up at postgres startup)
+# AWS credentials Secret
 apiVersion: v1
 kind: Secret
 metadata:
@@ -12,7 +12,7 @@ stringData:
   AWS_SECRET_ACCESS_KEY: "YOUR_AWS_SECRET_ACCESS_KEY"
 
 ---
-# 商品埋め込み生成Job（デプロイ時に実行）
+# Product embedding generation Job (runs at deploy time)
 apiVersion: batch/v1
 kind: Job
 metadata:

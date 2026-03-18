@@ -1,15 +1,15 @@
-# AWS Bedrock RAGチャットボット セットアップガイド
+# AWS Bedrock RAG Chatbot Setup Guide
 
-## 🔑 必要な情報
+## 🔑 Required Information
 
-### 1. AWS認証情報
-- **AWS Access Key ID**: `AKIAIOSFODNN7EXAMPLE` (例)
-- **AWS Secret Access Key**: `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` (例)
-- **AWS Region**: `us-east-1` または `us-west-2` など
+### 1. AWS Credentials
+- **AWS Access Key ID**: `AKIAIOSFODNN7EXAMPLE` (example)
+- **AWS Secret Access Key**: `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` (example)
+- **AWS Region**: `us-east-1` or `us-west-2`, etc.
 
-### 2. IAMポリシー設定
+### 2. IAM Policy
 
-Bedrockを使用するには、以下のIAMポリシーが必要です：
+The following IAM policy is required to use Bedrock:
 
 ```json
 {
@@ -31,34 +31,34 @@ Bedrockを使用するには、以下のIAMポリシーが必要です：
 }
 ```
 
-### 3. Bedrockモデルへのアクセス申請
+### 3. Requesting Bedrock Model Access
 
-AWS Bedrockコンソールで、使用したいモデルへのアクセスを申請する必要があります：
+Request access to the required models in the AWS Bedrock console:
 
 1. AWS Management Console → Bedrock
-2. 左メニュー「Model access」をクリック
-3. 使用したいモデルを選択：
-   - ✅ **Claude 3 Haiku** (推奨 - コスト効率)
-   - ✅ **Claude 3 Sonnet** (推奨 - バランス)
-   - ✅ **Titan Embeddings V2** (埋め込み生成用)
-4. 「Request model access」をクリック
+2. Click "Model access" in the left menu
+3. Select the models you need:
+   - ✅ **Claude 3 Haiku** (recommended — cost-efficient)
+   - ✅ **Claude 3 Sonnet** (recommended — balanced)
+   - ✅ **Titan Embeddings V2** (for embedding generation)
+4. Click "Request model access"
 
-**注意**: モデルアクセスの承認には数分〜数時間かかる場合があります。
+**Note**: Model access approval may take a few minutes to several hours.
 
-## 📍 利用可能なリージョン
+## 📍 Available Regions
 
-Bedrockが利用可能な主なリージョン：
-- `us-east-1` (バージニア北部) - 推奨
-- `us-west-2` (オレゴン)
-- `ap-northeast-1` (東京)
-- `ap-southeast-1` (シンガポール)
-- `eu-central-1` (フランクフルト)
+Main regions where Bedrock is available:
+- `us-east-1` (N. Virginia) — recommended
+- `us-west-2` (Oregon)
+- `ap-northeast-1` (Tokyo)
+- `ap-southeast-1` (Singapore)
+- `eu-central-1` (Frankfurt)
 
-## 🔧 環境変数設定
+## 🔧 Environment Variable Configuration
 
-### ローカル開発環境
+### Local Development
 
-`.env`ファイルを作成：
+Create a `.env` file:
 
 ```bash
 AWS_REGION=us-east-1
@@ -66,9 +66,9 @@ AWS_ACCESS_KEY_ID=your-access-key-id
 AWS_SECRET_ACCESS_KEY=your-secret-access-key
 ```
 
-### Kubernetes環境
+### Kubernetes
 
-Secretを作成：
+Create a Secret:
 
 ```bash
 kubectl create secret generic aws-bedrock-credentials \
@@ -77,41 +77,41 @@ kubectl create secret generic aws-bedrock-credentials \
   --from-literal=AWS_SECRET_ACCESS_KEY=your-secret-access-key
 ```
 
-## 💰 料金について
+## 💰 Pricing
 
-### Bedrock料金 (2024年11月時点の概算)
+### Bedrock Pricing (approximate as of November 2024)
 
-#### LLMモデル (入力/出力あたり)
-- **Claude 3 Haiku**: $0.00025 / 1K tokens (入力), $0.00125 / 1K tokens (出力)
-- **Claude 3 Sonnet**: $0.003 / 1K tokens (入力), $0.015 / 1K tokens (出力)
-- **Claude 3 Opus**: $0.015 / 1K tokens (入力), $0.075 / 1K tokens (出力)
+#### LLM Models (per input/output)
+- **Claude 3 Haiku**: $0.00025 / 1K tokens (input), $0.00125 / 1K tokens (output)
+- **Claude 3 Sonnet**: $0.003 / 1K tokens (input), $0.015 / 1K tokens (output)
+- **Claude 3 Opus**: $0.015 / 1K tokens (input), $0.075 / 1K tokens (output)
 
-#### 埋め込みモデル
+#### Embedding Models
 - **Titan Embeddings V2**: $0.0001 / 1K tokens
 
-#### 概算コスト例
-- チャット1回あたり: $0.001 - $0.01 (Haikuの場合)
-- 商品埋め込み生成 (100商品): $0.01 - $0.05
-- 月間1,000チャット: $1 - $10
+#### Cost Examples
+- Per chat request: $0.001 - $0.01 (with Haiku)
+- Generate embeddings for 100 products: $0.01 - $0.05
+- 1,000 chats per month: $1 - $10
 
-**OpenAIと比較して約50-70%安い**
+**Approximately 50–70% cheaper than OpenAI**
 
-## 🚀 セットアップ手順
+## 🚀 Setup Steps
 
-### 1. AWS IAMユーザー作成
+### 1. Create an IAM user
 
 ```bash
-# AWS CLIを使用
+# Using AWS CLI
 aws iam create-user --user-name bedrock-chatbot-user
 
-# アクセスキーを作成
+# Create access key
 aws iam create-access-key --user-name bedrock-chatbot-user
 ```
 
-### 2. IAMポリシーをアタッチ
+### 2. Attach IAM policy
 
 ```bash
-# ポリシーJSONファイルを作成
+# Create policy JSON file
 cat > bedrock-policy.json <<EOF
 {
   "Version": "2012-10-17",
@@ -128,80 +128,80 @@ cat > bedrock-policy.json <<EOF
 }
 EOF
 
-# ポリシーを作成してアタッチ
+# Create and attach the policy
 aws iam put-user-policy \
   --user-name bedrock-chatbot-user \
   --policy-name BedrockInvokePolicy \
   --policy-document file://bedrock-policy.json
 ```
 
-### 3. モデルアクセスを確認
+### 3. Verify model access
 
 ```bash
-# Bedrock利用可能なモデルを確認
+# List available Bedrock models
 aws bedrock list-foundation-models --region us-east-1
 ```
 
-## 🔍 トラブルシューティング
+## 🔍 Troubleshooting
 
-### エラー: "Access Denied"
-→ IAMポリシーを確認、モデルアクセスが承認されているか確認
+### Error: "Access Denied"
+→ Check IAM policy and verify model access has been approved.
 
-### エラー: "Model not found"
-→ 指定したリージョンでモデルが利用可能か確認
+### Error: "Model not found"
+→ Check that the specified model is available in the selected region.
 
-### エラー: "ThrottlingException"
-→ リクエスト数が多すぎる場合、リトライロジックを実装
+### Error: "ThrottlingException"
+→ Too many requests — implement retry logic with backoff.
 
-## 📚 使用可能なモデルID
+## 📚 Available Model IDs
 
-### LLMモデル
+### LLM Models
 ```
-anthropic.claude-3-haiku-20240307-v1:0    # 最速・最安
-anthropic.claude-3-sonnet-20240229-v1:0   # バランス型（推奨）
-anthropic.claude-3-opus-20240229-v1:0     # 最高品質
-amazon.titan-text-express-v1              # AWS製
-ai21.j2-ultra-v1                          # AI21 Labs製
-```
-
-### 埋め込みモデル
-```
-amazon.titan-embed-text-v2:0              # 最新版（推奨）
-amazon.titan-embed-text-v1                # 旧版
-cohere.embed-english-v3                   # Cohere製
-cohere.embed-multilingual-v3              # 多言語対応
+anthropic.claude-3-haiku-20240307-v1:0    # Fastest, cheapest
+anthropic.claude-3-sonnet-20240229-v1:0   # Balanced (recommended)
+anthropic.claude-3-opus-20240229-v1:0     # Highest quality
+amazon.titan-text-express-v1              # AWS native
+ai21.j2-ultra-v1                          # AI21 Labs
 ```
 
-## ⚙️ 推奨設定
+### Embedding Models
+```
+amazon.titan-embed-text-v2:0              # Latest (recommended)
+amazon.titan-embed-text-v1                # Legacy
+cohere.embed-english-v3                   # Cohere (English)
+cohere.embed-multilingual-v3              # Cohere (multilingual)
+```
 
-### 開発環境
-- モデル: Claude 3 Haiku
-- リージョン: us-east-1
-- タイムアウト: 30秒
+## ⚙️ Recommended Configuration
 
-### 本番環境
-- モデル: Claude 3 Sonnet
-- リージョン: 最も近いリージョン
-- タイムアウト: 30秒
-- リトライ: 3回
+### Development
+- Model: Claude 3 Haiku
+- Region: us-east-1
+- Timeout: 30 seconds
 
-## 🔐 セキュリティベストプラクティス
+### Production
+- Model: Claude 3 Sonnet
+- Region: closest available region
+- Timeout: 30 seconds
+- Retries: 3
 
-1. ✅ IAMユーザーには最小権限のみ付与
-2. ✅ アクセスキーは環境変数またはSecretに保存
-3. ✅ ローテーション: アクセスキーを定期的に更新
-4. ✅ CloudTrailでAPI使用状況を監視
-5. ✅ VPCエンドポイント経由でアクセス（本番環境）
+## 🔐 Security Best Practices
 
-## 📊 監視・ログ
+1. ✅ Grant only the minimum required permissions to IAM users
+2. ✅ Store access keys in environment variables or Kubernetes Secrets
+3. ✅ Rotate access keys regularly
+4. ✅ Monitor API usage with CloudTrail
+5. ✅ Use VPC endpoints for production access
 
-### CloudWatch Metricsで監視
-- リクエスト数
-- レイテンシー
-- エラー率
-- トークン使用量
+## 📊 Monitoring & Logging
 
-### Datadog統合
+### CloudWatch Metrics
+- Request count
+- Latency
+- Error rate
+- Token usage
+
+### Datadog Integration
 ```go
 span.SetTag("llm.provider", "bedrock")
 span.SetTag("llm.model", modelId)
@@ -209,15 +209,13 @@ span.SetTag("llm.tokens.input", inputTokens)
 span.SetTag("llm.tokens.output", outputTokens)
 ```
 
-## 🎯 次のステップ
+## 🎯 Next Steps
 
-1. ✅ AWS認証情報を取得
-2. ✅ IAMポリシーを設定
-3. ✅ Bedrockモデルアクセスを申請
-4. ✅ 環境変数を設定
-5. ✅ チャットボットコードを実装
-6. ✅ RAG用にpgvectorをセットアップ
-7. ✅ 商品データの埋め込みを生成
-8. ✅ テスト・デプロイ
-
-
+1. ✅ Obtain AWS credentials
+2. ✅ Configure IAM policy
+3. ✅ Request Bedrock model access
+4. ✅ Set environment variables
+5. ✅ Implement chatbot code
+6. ✅ Set up pgvector for RAG
+7. ✅ Generate product embeddings
+8. ✅ Test and deploy

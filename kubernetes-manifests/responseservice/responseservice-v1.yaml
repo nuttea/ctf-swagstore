@@ -51,10 +51,10 @@ spec:
             requests:
               cpu: 50m
               memory: 100Mi          
-          volumeMounts:                  # ボリュームマウントのセクションを追加
+          volumeMounts:                  # Mount input data configmap
             - name: config-volume
               mountPath: /root/data         
-      volumes:                          # volumes セクションを追加
+      volumes:                          # Volumes backing the container mounts
         - name: config-volume
           configMap:
             name: inputdata

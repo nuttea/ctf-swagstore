@@ -1,57 +1,57 @@
-# チャットボットデプロイガイド
+# Chatbot Deployment Guide
 
-## 🚀 自動セットアップの概要
+## 🚀 Automated Setup Overview
 
-このチャットボットは、Kubernetes Jobを使用してデプロイ時に自動的にセットアップされます。
+The chatbot is automatically set up at deploy time using Kubernetes Jobs.
 
-### デプロイ時の自動実行フロー
+### Automated Deployment Flow
 
 ```
 1. PreSync Job (chatbot-pgvector-setup)
    ↓
-   PostgreSQLにpgvector拡張をインストール
+   Install pgvector extension into PostgreSQL
    ↓
-2. 通常のアプリケーションデプロイ
+2. Regular application deployment
    ↓
 3. PostSync Job (chatbot-embed-products)
    ↓
-   商品データの埋め込みベクトルを生成
+   Generate embedding vectors for product data
    ↓
-4. チャットボット準備完了！
+4. Chatbot ready!
 ```
 
-## 📦 含まれるコンポーネント
+## 📦 Components
 
 ### 1. **chatbot-setup-job.yaml**
-- ConfigMap: SQLスクリプトとセットアップスクリプト
-- Secret: AWS Bedrock認証情報
-- Job: pgvectorセットアップ（PreSync）
-- Job: 商品埋め込み生成（PostSync）
+- ConfigMap: SQL scripts and setup scripts
+- Secret: AWS Bedrock credentials
+- Job: pgvector setup (PreSync)
+- Job: Product embedding generation (PostSync)
 
 ### 2. **chatbot-embedder**
-- Go製CLIツール
-- Bedrock Titan Embeddingsを使用
-- 商品データをベクトル化してPostgreSQLに保存
+- Go CLI tool
+- Uses Bedrock Titan Embeddings
+- Vectorizes product data and stores it in PostgreSQL
 
-### 3. **フロントエンド（実装予定）**
-- チャットウィジェット UI
-- Bedrock Claude 3連携
-- RAG検索機能
+### 3. **Frontend (implemented)**
+- Chat widget UI
+- Bedrock Claude 3 integration
+- RAG retrieval
 
-## 🔧 デプロイ手順
+## 🔧 Deployment Steps
 
-### 前提条件
+### Prerequisites
 
-1. ✅ Kubernetes クラスタが稼働中
-2. ✅ PostgreSQL（postgres Pod）が稼働中
-3. ✅ AWS Bedrockへのアクセス権限
-4. ✅ モデルアクセスが承認済み
+1. ✅ Kubernetes cluster is running
+2. ✅ PostgreSQL (postgres Pod) is running
+3. ✅ AWS Bedrock access granted
+4. ✅ Model access approved:
    - Claude 3 Haiku/Sonnet
    - Titan Embeddings V2
 
-### ステップ 1: AWS認証情報を設定
+### Step 1: Configure AWS credentials
 
-`kubernetes-manifests/chatbot-setup-job.yaml`のSecretセクションは既に設定済みです：
+The Secret section in `kubernetes-manifests/chatbot-setup-job.yaml` is already defined:
 
 ```yaml
 apiVersion: v1
@@ -65,53 +65,53 @@ stringData:
   AWS_SECRET_ACCESS_KEY: "YOUR_AWS_SECRET_ACCESS_KEY"
 ```
 
-### ステップ 2: PostgreSQLにpgvector拡張をインストール
+### Step 2: Install pgvector extension into PostgreSQL
 
-PostgreSQL Podでpgvectorがインストールされていることを確認：
+Verify pgvector is available in the PostgreSQL pod:
 
 ```bash
-# PostgreSQL Podに入る
+# Exec into the PostgreSQL pod
 kubectl exec -it deployment/postgres -- bash
 
-# pgvectorがインストール可能か確認
+# Check if pgvector can be installed
 psql -U postgres -d swagstoredb -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
-**注意**: pgvectorがインストールされていない場合、PostgreSQLイメージを`pgvector/pgvector:pg15`に変更する必要があります。
+**Note**: If pgvector is not available, update the PostgreSQL image to `pgvector/pgvector:pg15`.
 
-### ステップ 3: embedderイメージをビルド
+### Step 3: Build the embedder image
 
 ```bash
-# プロジェクトルートで
+# From project root
 cd src/chatbot-embedder
 
-# ローカルビルド
+# Local build
 docker build -t chatbot-embedder:latest .
 
-# または skaffold経由
+# Or via Skaffold
 cd ../..
 skaffold build
 ```
 
-### ステップ 4: チャットボットJobをデプロイ
+### Step 4: Deploy chatbot Jobs
 
 ```bash
-# ConfigMap, Secret, Jobsをデプロイ
+# Deploy ConfigMap, Secret, and Jobs
 kubectl apply -f kubernetes-manifests/chatbot-setup-job.yaml
 ```
 
-### ステップ 5: 実行状況を確認
+### Step 5: Check execution status
 
 ```bash
-# pgvectorセットアップJobの状態確認
+# Check pgvector setup Job
 kubectl get job chatbot-pgvector-setup
 kubectl logs job/chatbot-pgvector-setup
 
-# 商品埋め込み生成Jobの状態確認
+# Check product embedding generation Job
 kubectl get job chatbot-embed-products
 kubectl logs job/chatbot-embed-products -f
 
-# 成功例:
+# Expected output:
 # 🚀 Starting product embeddings generation...
 # ✅ Bedrock client initialized
 # ✅ Connected to PostgreSQL
@@ -122,12 +122,12 @@ kubectl logs job/chatbot-embed-products -f
 # 🎉 Embedding generation completed!
 ```
 
-### ステップ 6: 埋め込みデータを確認
+### Step 6: Verify embedding data
 
 ```bash
 kubectl exec -it deployment/postgres -- psql -U postgres -d swagstoredb
 
-# PostgreSQL内で
+# Inside PostgreSQL
 SELECT 
     product_id, 
     product_name, 
@@ -138,7 +138,7 @@ FROM product_embeddings
 ORDER BY created_at DESC;
 ```
 
-期待される出力：
+Expected output:
 ```
  product_id | product_name        | price_usd | vector_dim | created_at
 ------------+---------------------+-----------+------------+----------------------------
@@ -146,152 +146,146 @@ ORDER BY created_at DESC;
  ...
 ```
 
-## 🔄 再デプロイ時の動作
+## 🔄 Redeployment Behaviour
 
-### 通常のアプリケーション再デプロイ
+### Normal application redeploy
 ```bash
 skaffold run
 ```
-- pgvectorセットアップJob（PreSync）が再実行される
-- 商品埋め込み生成Job（PostSync）が再実行される
-- 既存の埋め込みデータは更新される（UPSERT）
+- pgvector setup Job (PreSync) will re-run
+- Product embedding generation Job (PostSync) will re-run
+- Existing embeddings are updated (UPSERT)
 
-### 手動で埋め込みを再生成
+### Manually regenerate embeddings
 ```bash
-# Jobを削除
+# Delete the Job
 kubectl delete job chatbot-embed-products
 
-# 再作成
+# Recreate it
 kubectl apply -f kubernetes-manifests/chatbot-setup-job.yaml
 ```
 
-## 🐛 トラブルシューティング
+## 🐛 Troubleshooting
 
-### エラー: "extension \"vector\" does not exist"
+### Error: "extension \"vector\" does not exist"
 
-**原因**: PostgreSQLにpgvectorがインストールされていない
+**Cause**: pgvector is not installed in PostgreSQL.
 
-**解決方法**:
+**Fix**:
 ```yaml
-# kubernetes-manifests/postgres.yamlを修正
+# Update kubernetes-manifests/postgres.yaml
 spec:
   containers:
   - name: postgres
-    image: pgvector/pgvector:pg15  # ← 変更
+    image: pgvector/pgvector:pg15  # ← change to this
 ```
 
-### エラー: "AccessDeniedException"
+### Error: "AccessDeniedException"
 
-**原因**: AWS BedrockのIAM権限が不足、またはモデルアクセスが未承認
+**Cause**: Insufficient IAM permissions or model access not approved in AWS Bedrock.
 
-**解決方法**:
+**Fix**:
 1. AWS Console → Bedrock → Model access
-2. Claude 3, Titan Embeddingsへのアクセスを申請
-3. IAMポリシーを確認
+2. Request access for Claude 3 and Titan Embeddings
+3. Review IAM policy
 
-### エラー: Job が Pending のまま
+### Error: Job stuck in Pending
 
-**原因**: PostgreSQLが起動していない
+**Cause**: PostgreSQL is not running.
 
-**解決方法**:
+**Fix**:
 ```bash
-# PostgreSQLの状態確認
+# Check PostgreSQL pod status
 kubectl get pods -l app=postgres
 
-# PostgreSQLを起動
+# Start PostgreSQL
 kubectl apply -f kubernetes-manifests/postgres.yaml
 ```
 
-### エラー: "connection refused"
+### Error: "connection refused"
 
-**原因**: PostgreSQLサービス名が間違っている
+**Cause**: Incorrect PostgreSQL service name.
 
-**解決方法**:
+**Fix**:
 ```bash
-# サービス名を確認
+# Check service name
 kubectl get svc | grep postgres
 
-# 環境変数を修正（必要に応じて）
-POSTGRES_HOST=postgres  # ← サービス名と一致させる
+# Update environment variable to match the service name
+POSTGRES_HOST=postgres
 ```
 
-## 📊 モニタリング
+## 📊 Monitoring
 
-### Datadog統合（将来実装）
+### Datadog Integration
 
 ```go
-// チャットボットメトリクス
+// Chatbot embedding metrics
 span.SetTag("chatbot.embeddings.generated", count)
 span.SetTag("chatbot.embeddings.dimensions", 1024)
 span.SetTag("chatbot.provider", "bedrock")
 span.SetTag("chatbot.model", "titan-embed-text-v2")
 ```
 
-### CloudWatch統合
+### CloudWatch Integration
 
-AWS CloudWatchで Bedrock使用状況を確認：
-- リクエスト数
-- レイテンシー
-- エラー率
-- トークン使用量
+Monitor Bedrock usage in AWS CloudWatch:
+- Request count
+- Latency
+- Error rate
+- Token usage
 
-## 💰 コスト見積もり
+## 💰 Cost Estimate
 
-### Titan Embeddings V2 料金
+### Titan Embeddings V2 Pricing
 - $0.0001 / 1,000 tokens
 
-### 商品100件の埋め込み生成コスト
-- 平均50 tokens/商品 × 100商品 = 5,000 tokens
-- コスト: 約 $0.0005 （0.05円）
+### Embedding generation cost for 100 products
+- Average 50 tokens/product × 100 products = 5,000 tokens
+- Cost: ~$0.0005
 
-### 月次コスト（毎日再デプロイの場合）
-- $0.0005 × 30日 = $0.015/月 （約1.5円）
+### Monthly cost (if redeployed daily)
+- $0.0005 × 30 days = $0.015/month
 
-## 🎯 次のステップ
+## 🎯 Next Steps
 
-1. ✅ pgvectorセットアップ - 完了
-2. ✅ 商品埋め込み生成 - 完了
-3. ⏳ フロントエンドUIの実装
-4. ⏳ チャットAPIエンドポイントの実装
-5. ⏳ RAG検索ロジックの実装
+1. ✅ pgvector setup — done
+2. ✅ Product embedding generation — done
+3. ✅ Frontend UI implementation — done
+4. ✅ Chat API endpoint implementation — done
+5. ✅ RAG retrieval logic implementation — done
 
-## 📝 クリーンアップ
+## 📝 Cleanup
 
-### Jobsを削除
+### Delete Jobs
 ```bash
 kubectl delete job chatbot-pgvector-setup chatbot-embed-products
 ```
 
-### 埋め込みデータを削除
+### Drop embedding data
 ```bash
 kubectl exec -it deployment/postgres -- psql -U postgres -d swagstoredb
 
-# PostgreSQL内で
+# Inside PostgreSQL
 DROP TABLE IF EXISTS product_embeddings;
 ```
 
-### Secretを削除
+### Delete Secret
 ```bash
 kubectl delete secret aws-bedrock-credentials
 ```
 
-## 🔐 セキュリティベストプラクティス
+## 🔐 Security Best Practices
 
-1. ✅ AWS認証情報をSecretとして管理
-2. ⚠️ 本番環境では認証情報をハードコードしない
-3. ✅ IAMロールを使用（EKS環境推奨）
-4. ✅ 最小権限の原則を適用
-5. ✅ 定期的なアクセスキーローテーション
+1. ✅ Store AWS credentials as Kubernetes Secrets
+2. ⚠️ Never hardcode credentials in production
+3. ✅ Use IAM roles (recommended for EKS environments)
+4. ✅ Apply least-privilege principle
+5. ✅ Rotate access keys regularly
 
-## 📚 参考リンク
+## 📚 References
 
 - [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
 - [pgvector GitHub](https://github.com/pgvector/pgvector)
 - [Titan Embeddings V2](https://docs.aws.amazon.com/bedrock/latest/userguide/titan-embedding-models.html)
 - [Claude 3 Models](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-claude.html)
-
-
-
-
-
-

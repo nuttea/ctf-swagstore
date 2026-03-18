@@ -30,9 +30,9 @@ spec:
         - name: CHATBOT_URL
           value: "http://chatbot-api:8080"
         - name: ATTACK_INTERVAL
-          value: "300"  # 5分ごとに各攻撃を実行（ラウンドロビン）
+          value: "300"  # Run each attack type every 5 minutes (round-robin)
         - name: CYCLE_INTERVAL
-          value: "2100"  # 1サイクル = 7攻撃 × 5分 = 35分
+          value: "2100"  # Full cycle = 7 attacks × 5 minutes = 35 minutes
         - name: DD_ENV
           valueFrom:
             fieldRef:

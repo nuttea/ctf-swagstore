@@ -87,7 +87,7 @@ data:
     
     -- Grant necessary permissions for Datadog DBM
     GRANT pg_monitor TO datadog;
-    -- 重要：datadogユーザーがpg_monitorロールから権限を継承できるようにする
+    -- Important: allow datadog user to inherit permissions from pg_monitor role
     ALTER ROLE datadog INHERIT;
     
     GRANT SELECT ON pg_stat_database TO datadog;
@@ -193,7 +193,7 @@ data:
     INSERT INTO users (username, password) VALUES 
       ('ctf', 'flag{sql_injection_detected}') ON CONFLICT (username) DO NOTHING;
     
-    -- 商品テーブル（productcatalogservice用）
+    -- Products table (used by productcatalogservice)
     CREATE TABLE IF NOT EXISTS products (
       id VARCHAR(50) PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
@@ -205,7 +205,7 @@ data:
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     
-    -- 商品データを挿入
+    -- Seed initial product data
     INSERT INTO products (id, name, description, picture, price_usd_units, price_usd_nanos, categories) VALUES
       ('0PUK6V6EV0', 'Dog Headphones', 'You feel it the minute you put them on. The soft, plush cushions seal you in.', '/static/img/products/headphones.jpg', 229, 990000000, ARRAY['accessories']),
       ('1YMWWN1N4O', 'Dog Steel Bottle', 'NoLimit - robust stainless steel vacuum flask including sports lid.', '/static/img/products/steel-bottle.jpg', 35, 970000000, ARRAY['accessories']),
@@ -217,13 +217,13 @@ data:
       ('L9ECAV7KIM', 'Dog SKO Notebook', 'The perfect companion for taking notes during SKOs.', '/static/img/products/sko-notebook.jpg', 19, 990000000, ARRAY['accessories', 'office']),
       ('LS4PSXUNUM', 'Dog Mug', 'A simple mug with a nice branding.', '/static/img/products/mug.jpg', 8, 990000000, ARRAY['kitchen']);
     
-    -- 遅いクエリを実行する関数（商品検索用）
+    -- Function that executes intentionally slow queries (used to simulate DBM slow query events)
     CREATE OR REPLACE FUNCTION simulate_slow_product_queries()
     RETURNS VOID AS \$\$
     DECLARE
         dummy_record RECORD;
     BEGIN
-        -- 遅いクエリ1: カテゴリでの検索（インデックスなし）
+        -- Slow query 1: category filter with no index (CTF #62)
         FOR dummy_record IN
             SELECT p.id, p.name, p.description, p.price_usd_units, p.price_usd_nanos
             FROM products p
@@ -231,10 +231,10 @@ data:
             ORDER BY p.price_usd_units DESC
             LIMIT 10
         LOOP
-            -- 何もしない
+            -- no-op: consume result to force full scan
         END LOOP;
         
-        -- 遅いクエリ2: 商品名での部分一致検索（インデックスなし）
+        -- Slow query 2: partial name match with no index (CTF #62)
         FOR dummy_record IN
             SELECT p.id, p.name, p.description
             FROM products p
@@ -242,16 +242,16 @@ data:
             OR LOWER(p.description) LIKE '%dog%'
             ORDER BY p.name
         LOOP
-            -- 何もしない
+            -- no-op: consume result to force full scan
         END LOOP;
     END;
     \$\$ LANGUAGE plpgsql;
     
-    -- 権限を付与
+    -- Grant read access for Datadog DBM monitoring
     GRANT SELECT ON public.users TO datadog;
     GRANT SELECT ON public.products TO datadog;
     
-    -- 確認
+    -- Verify row counts after seeding
     SELECT 'Table users created successfully with ' || COUNT(*) || ' records' FROM users;
     SELECT 'Table products created successfully with ' || COUNT(*) || ' records' FROM products;
     
