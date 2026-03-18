@@ -412,6 +412,13 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 		ccCVV, _      = strconv.ParseInt(r.FormValue("credit_card_cvv"), 10, 32)
 	)
 
+	// Extract trace/span IDs for log correlation with Datadog APM
+	var traceID, spanID uint64
+	if span, ok := tracer.SpanFromContext(r.Context()); ok {
+		traceID = span.Context().TraceID()
+		spanID = span.Context().SpanID()
+	}
+
 	order, err := pb.NewCheckoutServiceClient(fe.checkoutSvcConn).
 		PlaceOrder(r.Context(), &pb.PlaceOrderRequest{
 			Email: email,
@@ -430,19 +437,40 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 				Country:       country},
 		})
 	if err != nil {
+		log.WithFields(logrus.Fields{
+			"email":        email,
+			"user_id":      sessionID(r),
+			"currency":     currentCurrency(r),
+			"cc_year":      ccYear,
+			"error":        err.Error(),
+			"dd.trace_id":  fmt.Sprintf("%d", traceID),
+			"dd.span_id":   fmt.Sprintf("%d", spanID),
+		}).Error("checkout failed: failed to charge card")
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to complete the order"), http.StatusInternalServerError)
 		return
 	}
 	log.WithField("order", order.GetOrder().GetOrderId()).Info("order placed")
 
-	order.GetOrder().GetItems()
-	recommendations, _ := fe.getRecommendations(r.Context(), sessionID(r), nil)
-
-	totalPaid := *order.GetOrder().GetShippingCost()
+	// Calculate total paid for success log
+	orderTotal := *order.GetOrder().GetShippingCost()
 	for _, v := range order.GetOrder().GetItems() {
 		multPrice := money.MultiplySlow(*v.GetCost(), uint32(v.GetItem().GetQuantity()))
-		totalPaid = money.Must(money.Sum(totalPaid, multPrice))
+		orderTotal = money.Must(money.Sum(orderTotal, multPrice))
 	}
+	log.WithFields(logrus.Fields{
+		"order_id":     order.GetOrder().GetOrderId(),
+		"email":        email,
+		"user_id":      sessionID(r),
+		"currency":     currentCurrency(r),
+		"total_amount": fmt.Sprintf("%s%d.%d", orderTotal.GetCurrencyCode(), orderTotal.GetUnits(), orderTotal.GetNanos()/1e7),
+		"items_count":  len(order.GetOrder().GetItems()),
+		"dd.trace_id":  fmt.Sprintf("%d", traceID),
+		"dd.span_id":   fmt.Sprintf("%d", spanID),
+	}).Info("checkout succeeded")
+
+	recommendations, _ := fe.getRecommendations(r.Context(), sessionID(r), nil)
+
+	totalPaid := orderTotal // already computed above for the success log
 
 	currencies, err := fe.getCurrencies(r.Context())
 	if err != nil {
