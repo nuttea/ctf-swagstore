@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"os/signal"
@@ -210,11 +211,12 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 	
 	time.Sleep(extraLatency)
 	
-	// CTF #18-21: Inject artificial 11s latency for product 2ZYFJ3GM2N to simulate a slow downstream query
+	// CTF #18-21: Inject random 3–11s latency for product 2ZYFJ3GM2N to simulate a slow downstream query
 	// Expected: this product shows as the slowest in APM (GET /product/{id} endpoint)
 	if req.Id == "2ZYFJ3GM2N" {
-		span.SetTag("artificial_delay", "11s")
-		time.Sleep(11 * time.Second)
+		delay := time.Duration(3+rand.Intn(9)) * time.Second // random in [3, 11] seconds
+		span.SetTag("artificial_delay_seconds", delay.Seconds())
+		time.Sleep(delay)
 	}
 	
 	// Fetch product from PostgreSQL; fall back to in-memory catalog if unavailable
