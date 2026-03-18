@@ -262,6 +262,35 @@ skaffold build \
   --build-image=responseservice-v1
 ```
 
+### Force rebuild (skip image cache)
+
+By default Skaffold caches images and skips rebuilding if the source hasn't changed (`Found. Tagging` / `Found Remotely`). Add `--cache-artifacts=false` to bypass the cache and always build fresh:
+
+```bash
+# Force rebuild all images
+skaffold build \
+  --default-repo=gcr.io/datadog-ese-sandbox \
+  --tag=latest \
+  --platform=linux/amd64 \
+  --cache-artifacts=false
+```
+
+```bash
+# Force rebuild a single image (e.g. loadgenerator)
+skaffold build \
+  --default-repo=gcr.io/datadog-ese-sandbox \
+  --tag=latest \
+  --platform=linux/amd64 \
+  --build-image=loadgenerator \
+  --cache-artifacts=false
+```
+
+After a force rebuild you may need to restart the running pods to pull the new image:
+
+```bash
+kubectl rollout restart deployment/<service-name>
+```
+
 > **Tip:** Authenticate Docker to GCR before pushing:
 > ```bash
 > gcloud auth configure-docker gcr.io
