@@ -31,6 +31,15 @@ resources:
  - redis.yaml
  - shippingservice.yaml
  - responseservice
+# Inject DD_GIT_COMMIT_SHA and DD_GIT_REPOSITORY_URL into every Deployment
+# that already carries Datadog Unified Service Tagging labels.
+# The "git-info" ConfigMap is created by the Skaffold pre-deploy hook.
+patches:
+- target:
+    kind: Deployment
+    labelSelector: "tags.datadoghq.com/service"
+  path: patches/git-info-envvars.yaml
+
 components:
 # - ../kustomize/components/cymbal-branding
 # - ../kustomize/components/google-cloud-operations

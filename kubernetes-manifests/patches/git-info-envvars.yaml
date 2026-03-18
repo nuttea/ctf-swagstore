@@ -1,0 +1,24 @@
+# JSON 6902 patch — appends DD_GIT_COMMIT_SHA and DD_GIT_REPOSITORY_URL to the
+# first container of every targeted Deployment.
+# Values are read from the "git-info" ConfigMap that the Skaffold pre-deploy
+# hook creates/updates from `git rev-parse HEAD` before each deploy.
+# optional: true ensures pods still start even if the ConfigMap is absent
+# (e.g. a plain `kubectl apply` without the hook).
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: DD_GIT_COMMIT_SHA
+    valueFrom:
+      configMapKeyRef:
+        name: git-info
+        key: DD_GIT_COMMIT_SHA
+        optional: true
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: DD_GIT_REPOSITORY_URL
+    valueFrom:
+      configMapKeyRef:
+        name: git-info
+        key: DD_GIT_REPOSITORY_URL
+        optional: true

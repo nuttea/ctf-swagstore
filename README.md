@@ -262,6 +262,36 @@ skaffold build \
   --build-image=responseservice-v1
 ```
 
+### Datadog APM Code Origin & Source Code Integration
+
+Every `skaffold run` / `skaffold deploy` automatically injects the current git commit SHA into a Kubernetes ConfigMap called `git-info` via a pre-deploy hook:
+
+```bash
+kubectl get configmap git-info -o yaml
+# DD_GIT_COMMIT_SHA:      <current HEAD sha>
+# DD_GIT_REPOSITORY_URL:  https://github.com/nuttea/ctf-swagstore
+```
+
+A Kustomize JSON patch then appends two environment variables to **every Deployment that carries Datadog Unified Service Tagging labels**:
+
+| Variable | Source |
+|----------|--------|
+| `DD_GIT_COMMIT_SHA` | `git-info` ConfigMap key (set at deploy time from `git rev-parse HEAD`) |
+| `DD_GIT_REPOSITORY_URL` | `git-info` ConfigMap key (static: `https://github.com/nuttea/ctf-swagstore`) |
+
+This enables:
+- **[Code Origin](https://docs.datadoghq.com/tracing/code_origin/)** — APM error frames link directly to source lines in Datadog
+- **[Source Code Integration](https://docs.datadoghq.com/source_code/service-mapping/)** — Service Catalog shows the repository and last deployed commit
+
+If you run `kubectl apply` directly (without Skaffold), create the ConfigMap manually first:
+
+```bash
+kubectl create configmap git-info \
+  --from-literal=DD_GIT_COMMIT_SHA=$(git rev-parse HEAD) \
+  --from-literal=DD_GIT_REPOSITORY_URL=https://github.com/nuttea/ctf-swagstore \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
 ### Force rebuild (skip image cache)
 
 By default Skaffold caches images and skips rebuilding if the source hasn't changed (`Found. Tagging` / `Found Remotely`). Add `--cache-artifacts=false` to bypass the cache and always build fresh:
