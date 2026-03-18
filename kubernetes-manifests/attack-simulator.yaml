@@ -1,4 +1,4 @@
-# Attack Simulator for Datadog AAP Testing
+# Attack Simulator for Datadog AAP Testing (CTF #44-46, #54, #56-59)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -6,6 +6,9 @@ metadata:
   labels:
     app: attack-simulator
     purpose: security-testing
+    tags.datadoghq.com/env: "ctf"
+    tags.datadoghq.com/service: "attack-simulator"
+    tags.datadoghq.com/version: "1.0.0"
 spec:
   replicas: 1
   selector:
@@ -16,12 +19,29 @@ spec:
       labels:
         app: attack-simulator
         purpose: security-testing
+        tags.datadoghq.com/env: "ctf"
+        tags.datadoghq.com/service: "attack-simulator"
+        tags.datadoghq.com/version: "1.0.0"
+      annotations:
+        ad.datadoghq.com/attack-simulator.logs: '[{"source": "python", "service": "attack-simulator"}]'
     spec:
       containers:
       - name: attack-simulator
         image: attack-simulator
         imagePullPolicy: Always
         env:
+        - name: DD_ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/env']
+        - name: DD_SERVICE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/service']
+        - name: DD_VERSION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['tags.datadoghq.com/version']
         - name: FRONTEND_URL
           value: "http://frontend"
         - name: ATTACK_INTERVAL
